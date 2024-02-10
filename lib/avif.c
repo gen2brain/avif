@@ -2,7 +2,6 @@
 #include <string.h>
 
 #include "avif/avif.h"
-#include <emscripten.h>
 
 void *allocate(size_t size);
 void deallocate(void *ptr);
@@ -10,17 +9,17 @@ void deallocate(void *ptr);
 void rgba(avifImage *image, uint8_t *rgb_out);
 avifImage *decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height);
 
-EMSCRIPTEN_KEEPALIVE
+__attribute__((export_name("allocate")))
 void *allocate(size_t size) {
     return malloc(size);
 }
 
-EMSCRIPTEN_KEEPALIVE
+__attribute__((export_name("deallocate")))
 void deallocate(void *ptr) {
     free(ptr);
 }
 
-EMSCRIPTEN_KEEPALIVE
+__attribute__((export_name("rgba")))
 void rgba(avifImage *image, uint8_t *rgb_out) {
     avifRGBImage rgb;
     avifRGBImageSetDefaults(&rgb, image);  // Defaults to AVIF_RGB_FORMAT_RGBA.
@@ -36,7 +35,7 @@ void rgba(avifImage *image, uint8_t *rgb_out) {
     avifImageDestroy(image);
 }
 
-EMSCRIPTEN_KEEPALIVE
+__attribute__((export_name("decode")))
 avifImage* decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height) {
     avifImage *image = avifImageCreateEmpty();
     avifDecoder *decoder = avifDecoderCreate();
