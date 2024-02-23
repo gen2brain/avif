@@ -6,8 +6,7 @@
 void *allocate(size_t size);
 void deallocate(void *ptr);
 
-void rgba(avifImage *image, uint8_t *rgb_out);
-avifImage *decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height);
+int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height, uint8_t *rgb_out);
 
 __attribute__((export_name("allocate")))
 void *allocate(size_t size) {
@@ -19,38 +18,59 @@ void deallocate(void *ptr) {
     free(ptr);
 }
 
-__attribute__((export_name("rgba")))
-void rgba(avifImage *image, uint8_t *rgb_out) {
-    avifRGBImage rgb;
-    avifRGBImageSetDefaults(&rgb, image);  // Defaults to AVIF_RGB_FORMAT_RGBA.
-    rgb.depth = 8;
-
-    avifRGBImageAllocatePixels(&rgb);
-    avifImageYUVToRGB(image, &rgb);
-
-    int buf_size = image->width * image->height * 4;
-    memcpy(rgb_out, rgb.pixels, buf_size);
-
-    avifRGBImageFreePixels(&rgb);
-    avifImageDestroy(image);
-}
-
 __attribute__((export_name("decode")))
-avifImage* decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height) {
-    avifImage *image = avifImageCreateEmpty();
+int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height, uint8_t *rgb_out) {
+    avifRGBImage rgb;
+
     avifDecoder *decoder = avifDecoderCreate();
+    decoder->ignoreExif = 1;
+    decoder->ignoreXMP = 1;
 
-    avifResult result = avifDecoderReadMemory(decoder, image, avif_in, avif_in_size);
-    avifDecoderDestroy(decoder);
-
-    if(result == AVIF_RESULT_OK) {
-        *width = (uint32_t)image->width;
-        *height = (uint32_t)image->height;
+    avifResult result = avifDecoderSetIOMemory(decoder, avif_in, avif_in_size);
+    if(result != AVIF_RESULT_OK) {
+        avifDecoderDestroy(decoder);
+        return 0;
     }
+
+    result = avifDecoderParse(decoder);
+    if(result != AVIF_RESULT_OK) {
+        avifDecoderDestroy(decoder);
+        return 0;
+    }
+
+    *width = (uint32_t)decoder->image->width;
+    *height = (uint32_t)decoder->image->height;
 
     if(config_only) {
-        avifImageDestroy(image);
+        avifDecoderDestroy(decoder);
+        return 1;
     }
 
-    return image;
+    if(avifDecoderNextImage(decoder) == AVIF_RESULT_OK) {
+        avifRGBImageSetDefaults(&rgb, decoder->image); // Defaults to AVIF_RGB_FORMAT_RGBA.
+        rgb.depth = 8;
+
+        result = avifRGBImageAllocatePixels(&rgb);
+        if(result != AVIF_RESULT_OK) {
+            avifDecoderDestroy(decoder);
+            return 0;
+        }
+
+        result = avifImageYUVToRGB(decoder->image, &rgb);
+        if(result != AVIF_RESULT_OK) {
+            avifRGBImageFreePixels(&rgb);
+            avifDecoderDestroy(decoder);
+            return 0;
+        }
+
+        int buf_size = decoder->image->width * decoder->image->height * 4;
+        memcpy(rgb_out, rgb.pixels, buf_size);
+ 
+        avifRGBImageFreePixels(&rgb);
+        avifDecoderDestroy(decoder);
+        return 1;
+    }
+
+    avifDecoderDestroy(decoder);
+    return 0;
 }

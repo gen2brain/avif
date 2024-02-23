@@ -21,8 +21,12 @@ import (
 //go:embed lib/avif.wasm
 var avifWasm []byte
 
-var ErrMemRead = errors.New("mem read failed")
-var ErrMemWrite = errors.New("mem write failed")
+// Errors .
+var (
+	ErrMemRead  = errors.New("mem read failed")
+	ErrMemWrite = errors.New("mem write failed")
+	ErrDecode   = errors.New("decode failed")
+)
 
 // Decode reads a AVIF image from r and returns it as an image.Image.
 func Decode(r io.Reader) (image.Image, error) {
@@ -86,17 +90,14 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 	heightPtr := res[0]
 	defer _free.Call(ctx, heightPtr)
 
-	var cfgOnly uint64
-	if configOnly {
-		cfgOnly = 1
-	}
-
-	res, err = _decode.Call(ctx, inPtr, uint64(inSize), cfgOnly, widthPtr, heightPtr)
+	res, err = _decode.Call(ctx, inPtr, uint64(inSize), 1, widthPtr, heightPtr, 0)
 	if err != nil {
 		return nil, cfg, fmt.Errorf("decode: %w", err)
 	}
-	imagePtr := res[0]
-	defer _free.Call(ctx, imagePtr)
+
+	if res[0] == 0 {
+		return nil, cfg, ErrDecode
+	}
 
 	width, ok := mod.Memory().ReadUint32Le(uint32(widthPtr))
 	if !ok {
@@ -125,9 +126,13 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 	outPtr := res[0]
 	defer _free.Call(ctx, outPtr)
 
-	_, err = _rgba.Call(ctx, imagePtr, outPtr)
+	res, err = _decode.Call(ctx, inPtr, uint64(inSize), 0, widthPtr, heightPtr, outPtr)
 	if err != nil {
-		return nil, cfg, fmt.Errorf("rgba: %w", err)
+		return nil, cfg, fmt.Errorf("decode: %w", err)
+	}
+
+	if res[0] == 0 {
+		return nil, cfg, ErrDecode
 	}
 
 	tmp, ok := mod.Memory().Read(uint32(outPtr), uint32(size))
@@ -146,7 +151,6 @@ var (
 
 	_alloc  api.Function
 	_free   api.Function
-	_rgba   api.Function
 	_decode api.Function
 
 	initialized atomic.Bool
@@ -179,7 +183,6 @@ func initialize() {
 
 	_alloc = mod.ExportedFunction("allocate")
 	_free = mod.ExportedFunction("deallocate")
-	_rgba = mod.ExportedFunction("rgba")
 	_decode = mod.ExportedFunction("decode")
 
 	initialized.Store(true)

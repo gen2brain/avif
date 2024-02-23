@@ -49,7 +49,7 @@ $(LIBAVIF_DAV1D_BUILD)/libdav1d.a: $(LIBAVIF_SRC) $(LIBAVIF_DAV1D_SRC)
 	$(MAKE) -j$(shell nproc)
 
 	mkdir -p $(LIBAVIF_DAV1D_BUILD)/src && cp $(LIBAVIF_DAV1D_BUILD)/libdav1d.a $(LIBAVIF_DAV1D_BUILD)/src/
-	ln -s $(LIBAVIF_DAV1D_SRC)/dav1d/include $(LIBAVIF_DAV1D_SRC)/include
+	ln -sf $(LIBAVIF_DAV1D_SRC)/dav1d/include $(LIBAVIF_DAV1D_SRC)/include
 
 $(LIBAVIF_YUV_BUILD)/libyuv.a: $(LIBAVIF_YUV_SRC)
 	cd $(LIBAVIF_YUV_BUILD); \
