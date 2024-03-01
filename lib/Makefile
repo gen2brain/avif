@@ -49,6 +49,7 @@ $(LIBAVIF_DAV1D_BUILD)/libdav1d.a: $(LIBAVIF_SRC) $(LIBAVIF_DAV1D_SRC)
 		-DBUILD_SHARED_LIBS=0 \
 		-DBUILD_TESTING=0 \
 		-Denable_tools=0 \
+		-Dbitdepth_16=1 \
 		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
 
 	cd $(LIBAVIF_DAV1D_BUILD); \
@@ -98,7 +99,8 @@ $(BIN): $(LIBAVIF_BUILD)/libavif.a
 		${LIBAVIF_BUILD}/libavif.a \
 		${LIBAVIF_YUV_BUILD}/libyuv.a \
 		${LIBAVIF_DAV1D_BUILD}/libdav1d.a \
-		${LIBAVIF_DAV1D_BUILD}/libdav1d_bitdepth_8.a
+		${LIBAVIF_DAV1D_BUILD}/libdav1d_bitdepth_8.a \
+		${LIBAVIF_DAV1D_BUILD}/libdav1d_bitdepth_16.a
 
 .PHONY: clean
 
