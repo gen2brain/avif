@@ -7,4 +7,5 @@ import (
 
 func init() {
 	image.RegisterFormat("avif", "????ftypavif", Decode, DecodeConfig)
+	image.RegisterFormat("avif", "????ftypavis", Decode, DecodeConfig)
 }

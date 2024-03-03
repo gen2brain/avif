@@ -11,11 +11,17 @@ import (
 	"github.com/gen2brain/avif"
 )
 
-//go:embed testdata/test.avif
-var testAvif []byte
+//go:embed testdata/test8.avif
+var testAvif8 []byte
+
+//go:embed testdata/test10.avif
+var testAvif10 []byte
+
+//go:embed testdata/test.avifs
+var testAvifAnim []byte
 
 func TestDecode(t *testing.T) {
-	img, err := avif.Decode(bytes.NewReader(testAvif))
+	img, err := avif.Decode(bytes.NewReader(testAvif8))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,8 +32,50 @@ func TestDecode(t *testing.T) {
 	}
 }
 
+func TestDecode10(t *testing.T) {
+	img, err := avif.Decode(bytes.NewReader(testAvif10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = jpeg.Encode(io.Discard, img, nil)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestDecodeAnim(t *testing.T) {
+	imgs, delay, err := avif.DecodeAll(bytes.NewReader(testAvifAnim))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(imgs) != len(delay) {
+		t.Errorf("got %d, want %d", len(delay), len(imgs))
+	}
+
+	for _, img := range imgs {
+		err = jpeg.Encode(io.Discard, img, nil)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
 func TestImageDecode(t *testing.T) {
-	img, _, err := image.Decode(bytes.NewReader(testAvif))
+	img, _, err := image.Decode(bytes.NewReader(testAvif8))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = jpeg.Encode(io.Discard, img, nil)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestImageDecodeAnim(t *testing.T) {
+	img, _, err := image.Decode(bytes.NewReader(testAvifAnim))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +87,7 @@ func TestImageDecode(t *testing.T) {
 }
 
 func TestDecodeConfig(t *testing.T) {
-	cfg, err := avif.DecodeConfig(bytes.NewReader(testAvif))
+	cfg, err := avif.DecodeConfig(bytes.NewReader(testAvif8))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +102,7 @@ func TestDecodeConfig(t *testing.T) {
 }
 
 func BenchmarkDecodeJPEG(b *testing.B) {
-	img, _, err := image.Decode(bytes.NewReader(testAvif))
+	img, _, err := image.Decode(bytes.NewReader(testAvif8))
 	if err != nil {
 		b.Error(err)
 	}
@@ -75,7 +123,7 @@ func BenchmarkDecodeJPEG(b *testing.B) {
 
 func BenchmarkDecodeAVIF(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, _, err := image.Decode(bytes.NewReader(testAvif))
+		_, _, err := image.Decode(bytes.NewReader(testAvif8))
 		if err != nil {
 			b.Error(err)
 		}
@@ -84,7 +132,7 @@ func BenchmarkDecodeAVIF(b *testing.B) {
 
 func BenchmarkDecodeConfig(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, err := avif.DecodeConfig(bytes.NewReader(testAvif))
+		_, err := avif.DecodeConfig(bytes.NewReader(testAvif8))
 		if err != nil {
 			b.Error(err)
 		}
