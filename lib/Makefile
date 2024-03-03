@@ -29,25 +29,24 @@ $(LIBAVIF_SRC):
 	mkdir -p $(LIBAVIF_BUILD)
 	test -d $@
 
-$(LIBAVIF_DAV1D_SRC):
+$(LIBAVIF_DAV1D_SRC): $(LIBAVIF_SRC)
 	cd $(LIBAVIF_SRC)/ext; \
 	git clone -b $(LIBAVIF_DAV1D_VERSION) --depth 1 --recursive --jobs `nproc` https://github.com/MikuAuahDark/dav1d-cmake dav1d
 	mkdir -p $(LIBAVIF_DAV1D_BUILD)
 	test -d $@
 
-$(LIBAVIF_YUV_SRC):
+$(LIBAVIF_YUV_SRC): $(LIBAVIF_SRC)
 	cd $(LIBAVIF_SRC)/ext; \
 	git clone -b $(LIBAVIF_YUV_VERSION) --depth 1 https://chromium.googlesource.com/libyuv/libyuv
 	sed -i '/^ADD_EXECUTABLE\|^TARGET_LINK_LIBRARIES/d' $(LIBAVIF_YUV_SRC)/CMakeLists.txt
 	mkdir -p $(LIBAVIF_YUV_BUILD)
 	test -d $@
 
-$(LIBAVIF_DAV1D_BUILD)/libdav1d.a: $(LIBAVIF_SRC) $(LIBAVIF_DAV1D_SRC)
+$(LIBAVIF_DAV1D_BUILD)/libdav1d.a: $(LIBAVIF_DAV1D_SRC)
 	cd $(LIBAVIF_DAV1D_BUILD); \
 	$(EMCMAKE) $(LIBAVIF_DAV1D_SRC) \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
-		-DBUILD_TESTING=0 \
 		-Denable_tools=0 \
 		-Dbitdepth_16=1 \
 		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
@@ -63,7 +62,7 @@ $(LIBAVIF_YUV_BUILD)/libyuv.a: $(LIBAVIF_YUV_SRC)
 	$(EMCMAKE) $(LIBAVIF_YUV_SRC) \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
-		-DBUILD_TESTING=0 \
+		-Wno-dev \
 		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
 
 	cd $(LIBAVIF_YUV_BUILD); \
@@ -74,7 +73,6 @@ $(LIBAVIF_BUILD)/libavif.a: $(LIBAVIF_DAV1D_BUILD)/libdav1d.a $(LIBAVIF_YUV_BUIL
 	$(EMCMAKE) $(LIBAVIF_SRC) \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
-		-DBUILD_TESTING=0 \
 		-DAVIF_CODEC_DAV1D=1 \
 		-DAVIF_LOCAL_DAV1D=1 \
 		-DAVIF_LOCAL_LIBYUV=1 \
@@ -90,6 +88,7 @@ $(BIN): $(LIBAVIF_BUILD)/libavif.a
 		-mnontrapping-fptoint \
 		-sFILESYSTEM=0 \
 		-sALLOW_MEMORY_GROWTH=1 \
+		-sSTACK_SIZE=1MB \
 		-sSTANDALONE_WASM=1 \
 		-sUSE_PTHREADS=0 \
 		-I libavif/include \

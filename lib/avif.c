@@ -6,7 +6,7 @@
 void *allocate(size_t size);
 void deallocate(void *ptr);
 
-int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height, uint8_t *rgb_out);
+int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height, uint32_t *depth, uint8_t *rgb_out);
 
 __attribute__((export_name("allocate")))
 void *allocate(size_t size) {
@@ -19,7 +19,7 @@ void deallocate(void *ptr) {
 }
 
 __attribute__((export_name("decode")))
-int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height, uint8_t *rgb_out) {
+int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width, uint32_t *height, uint32_t *depth, uint8_t *rgb_out) {
     avifRGBImage rgb;
 
     avifDecoder *decoder = avifDecoderCreate();
@@ -40,6 +40,7 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width,
 
     *width = (uint32_t)decoder->image->width;
     *height = (uint32_t)decoder->image->height;
+    *depth = (uint32_t)decoder->image->depth;
 
     if(config_only) {
         avifDecoderDestroy(decoder);
@@ -47,8 +48,7 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width,
     }
 
     if(avifDecoderNextImage(decoder) == AVIF_RESULT_OK) {
-        avifRGBImageSetDefaults(&rgb, decoder->image); // Defaults to AVIF_RGB_FORMAT_RGBA.
-        rgb.depth = 8;
+        avifRGBImageSetDefaults(&rgb, decoder->image);
 
         result = avifRGBImageAllocatePixels(&rgb);
         if(result != AVIF_RESULT_OK) {
@@ -63,9 +63,9 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, uint32_t *width,
             return 0;
         }
 
-        int buf_size = decoder->image->width * decoder->image->height * 4;
+        int buf_size = rgb.rowBytes * rgb.height;
         memcpy(rgb_out, rgb.pixels, buf_size);
- 
+
         avifRGBImageFreePixels(&rgb);
         avifDecoderDestroy(decoder);
         return 1;
