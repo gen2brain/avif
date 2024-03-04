@@ -45,16 +45,20 @@ func TestDecode10(t *testing.T) {
 }
 
 func TestDecodeAnim(t *testing.T) {
-	imgs, delay, err := avif.DecodeAll(bytes.NewReader(testAvifAnim))
+	ret, err := avif.DecodeAll(bytes.NewReader(testAvifAnim))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(imgs) != len(delay) {
-		t.Errorf("got %d, want %d", len(delay), len(imgs))
+	if len(ret.Image) != len(ret.Delay) {
+		t.Errorf("got %d, want %d", len(ret.Delay), len(ret.Image))
 	}
 
-	for _, img := range imgs {
+	if len(ret.Image) != 17 {
+		t.Errorf("got %d, want %d", len(ret.Image), 48)
+	}
+
+	for _, img := range ret.Image {
 		err = jpeg.Encode(io.Discard, img, nil)
 		if err != nil {
 			t.Error(err)
