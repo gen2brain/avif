@@ -55,7 +55,7 @@ func TestDecodeAnim(t *testing.T) {
 	}
 
 	if len(ret.Image) != 17 {
-		t.Errorf("got %d, want %d", len(ret.Image), 48)
+		t.Errorf("got %d, want %d", len(ret.Image), 17)
 	}
 
 	for _, img := range ret.Image {
