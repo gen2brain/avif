@@ -27,6 +27,7 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
     avifDecoder *decoder = avifDecoderCreate();
     decoder->ignoreExif = 1;
     decoder->ignoreXMP = 1;
+    decoder->maxThreads = 0;
 
     avifResult result = avifDecoderSetIOMemory(decoder, avif_in, avif_in_size);
     if(result != AVIF_RESULT_OK) {
@@ -50,13 +51,7 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
         return 1;
     }
 
-    for(int i = 0; i < decoder->imageCount; i++) {
-        result = avifDecoderNextImage(decoder);
-        if(result != AVIF_RESULT_OK) {
-            avifDecoderDestroy(decoder);
-            return 0;
-        }
-
+    while(avifDecoderNextImage(decoder) == AVIF_RESULT_OK) {
         avifRGBImageSetDefaults(&rgb, decoder->image);
 
         result = avifRGBImageAllocatePixels(&rgb);
@@ -75,7 +70,7 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
         int buf_size = rgb.rowBytes * rgb.height;
         memcpy(rgb_out + buf_size*decoder->imageIndex, rgb.pixels, buf_size);
 
-        memcpy(delay + sizeof(double)*i, &decoder->imageTiming.duration, sizeof(double));
+        memcpy(delay + sizeof(double)*decoder->imageIndex, &decoder->imageTiming.duration, sizeof(double));
 
         avifRGBImageFreePixels(&rgb);
 
