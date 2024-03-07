@@ -1,4 +1,4 @@
-package avif_test
+package avif
 
 import (
 	"bytes"
@@ -7,8 +7,6 @@ import (
 	"image/jpeg"
 	"io"
 	"testing"
-
-	"github.com/gen2brain/avif"
 )
 
 //go:embed testdata/test8.avif
@@ -21,7 +19,7 @@ var testAvif10 []byte
 var testAvifAnim []byte
 
 func TestDecode(t *testing.T) {
-	img, err := avif.Decode(bytes.NewReader(testAvif8))
+	img, err := Decode(bytes.NewReader(testAvif8))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +31,7 @@ func TestDecode(t *testing.T) {
 }
 
 func TestDecode10(t *testing.T) {
-	img, err := avif.Decode(bytes.NewReader(testAvif10))
+	img, err := Decode(bytes.NewReader(testAvif10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +43,7 @@ func TestDecode10(t *testing.T) {
 }
 
 func TestDecodeAnim(t *testing.T) {
-	ret, err := avif.DecodeAll(bytes.NewReader(testAvifAnim))
+	ret, err := DecodeAll(bytes.NewReader(testAvifAnim))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +89,7 @@ func TestImageDecodeAnim(t *testing.T) {
 }
 
 func TestDecodeConfig(t *testing.T) {
-	cfg, err := avif.DecodeConfig(bytes.NewReader(testAvif8))
+	cfg, err := DecodeConfig(bytes.NewReader(testAvif8))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,29 +103,23 @@ func TestDecodeConfig(t *testing.T) {
 	}
 }
 
-func BenchmarkDecodeJPEG(b *testing.B) {
-	img, _, err := image.Decode(bytes.NewReader(testAvif8))
-	if err != nil {
-		b.Error(err)
-	}
-
-	var testJpeg bytes.Buffer
-	err = jpeg.Encode(&testJpeg, img, nil)
-	if err != nil {
-		b.Error(err)
-	}
-
+func BenchmarkDecode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, _, err := image.Decode(bytes.NewReader(testJpeg.Bytes()))
+		_, _, err := decode(bytes.NewReader(testAvif8), false, false)
 		if err != nil {
 			b.Error(err)
 		}
 	}
 }
 
-func BenchmarkDecodeAVIF(b *testing.B) {
+func BenchmarkDecodeDynamic(b *testing.B) {
+	if !dynamic {
+		b.Errorf("dynamic/shared library not installed")
+		return
+	}
+
 	for i := 0; i < b.N; i++ {
-		_, _, err := image.Decode(bytes.NewReader(testAvif8))
+		_, _, err := decodeDynamic(bytes.NewReader(testAvif8), false, false)
 		if err != nil {
 			b.Error(err)
 		}
@@ -136,7 +128,21 @@ func BenchmarkDecodeAVIF(b *testing.B) {
 
 func BenchmarkDecodeConfig(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, err := avif.DecodeConfig(bytes.NewReader(testAvif8))
+		_, _, err := decode(bytes.NewReader(testAvif8), true, false)
+		if err != nil {
+			b.Error(err)
+		}
+	}
+}
+
+func BenchmarkDecodeConfigDynamic(b *testing.B) {
+	if !dynamic {
+		b.Errorf("dynamic/shared library not installed")
+		return
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, _, err := decodeDynamic(bytes.NewReader(testAvif8), true, false)
 		if err != nil {
 			b.Error(err)
 		}

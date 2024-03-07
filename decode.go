@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -20,43 +19,6 @@ import (
 
 //go:embed lib/avif.wasm
 var avifWasm []byte
-
-// Errors .
-var (
-	ErrMemRead  = errors.New("avif: mem read failed")
-	ErrMemWrite = errors.New("avif: mem write failed")
-	ErrDecode   = errors.New("avif: decode failed")
-)
-
-// Decode reads a AVIF image from r and returns it as an image.Image.
-func Decode(r io.Reader) (image.Image, error) {
-	ret, _, err := decode(r, false, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return ret.Image[0], nil
-}
-
-// DecodeConfig returns the color model and dimensions of a AVIF image without decoding the entire image.
-func DecodeConfig(r io.Reader) (image.Config, error) {
-	_, cfg, err := decode(r, true, false)
-	if err != nil {
-		return image.Config{}, err
-	}
-
-	return cfg, nil
-}
-
-// DecodeAll reads a AVIF image from r and returns the sequential frames and timing information.
-func DecodeAll(r io.Reader) (*AVIF, error) {
-	ret, _, err := decode(r, false, true)
-	if err != nil {
-		return nil, err
-	}
-
-	return ret, nil
-}
 
 func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error) {
 	if !initialized.Load() {

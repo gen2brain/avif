@@ -5,3 +5,5 @@
 Go decoder for [AV1 Image File Format (AVIF)](https://en.wikipedia.org/wiki/AVIF).
 
 Based on [libavif](https://github.com/AOMediaCodec/libavif) and [dav1d](https://code.videolan.org/videolan/dav1d) compiled to [WASM](https://en.wikipedia.org/wiki/WebAssembly) and used with [wazero](https://wazero.io/) runtime (CGo-free).
+
+The library will first try to use a dynamic/shared library (if installed) via [purego](https://github.com/ebitengine/purego) and will fall back to WASM.
