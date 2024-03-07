@@ -18,5 +18,5 @@ func loadLibrary() (uintptr, error) {
 		return 0, fmt.Errorf("cannot load library %s: %w", libname, err)
 	}
 
-	return uintptr(handle)
+	return uintptr(handle), nil
 }
