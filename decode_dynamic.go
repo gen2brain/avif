@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"io"
 	"runtime"
+	"strings"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -30,11 +31,11 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	defer avifDecoderDestroy(decoder)
 
 	if !avifDecoderSetIOMemory(decoder, data) {
-		return nil, cfg, fmt.Errorf("%w: %s", ErrDecode, string(decoder.Diag.Error[:]))
+		return nil, cfg, fmt.Errorf("%w: %s", ErrDecode, toStr(decoder.Diag))
 	}
 
 	if !avifDecoderParse(decoder) {
-		return nil, cfg, fmt.Errorf("%w: %s", ErrDecode, string(decoder.Diag.Error[:]))
+		return nil, cfg, fmt.Errorf("%w: %s", ErrDecode, toStr(decoder.Diag))
 	}
 
 	cfg.Width = int(decoder.Image.Width)
@@ -113,14 +114,23 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 
 func init() {
 	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			dynamic = false
+			dynamicErr = fmt.Errorf("%v", r)
+		}
+	}()
 
 	libavif, err = loadLibrary()
 	if err == nil {
 		dynamic = true
 	} else {
+		dynamicErr = err
+
 		return
 	}
 
+	purego.RegisterLibFunc(&_avifVersion, libavif, "avifVersion")
 	purego.RegisterLibFunc(&_avifDecoderCreate, libavif, "avifDecoderCreate")
 	purego.RegisterLibFunc(&_avifDecoderDestroy, libavif, "avifDecoderDestroy")
 	purego.RegisterLibFunc(&_avifDecoderSetIOMemory, libavif, "avifDecoderSetIOMemory")
@@ -130,14 +140,22 @@ func init() {
 	purego.RegisterLibFunc(&_avifRGBImageAllocatePixels, libavif, "avifRGBImageAllocatePixels")
 	purego.RegisterLibFunc(&_avifRGBImageFreePixels, libavif, "avifRGBImageFreePixels")
 	purego.RegisterLibFunc(&_avifImageYUVToRGB, libavif, "avifImageYUVToRGB")
+
+	major, _ := avifVersion()
+	if major < 1 {
+		dynamic = false
+		dynamicErr = fmt.Errorf("minimum required libavif version is 1.0.0")
+	}
 }
 
 var (
-	libavif uintptr
-	dynamic bool
+	libavif    uintptr
+	dynamic    bool
+	dynamicErr error
 )
 
 var (
+	_avifVersion                func() string
 	_avifDecoderCreate          func() *avifDecoder
 	_avifDecoderDestroy         func(*avifDecoder)
 	_avifDecoderSetIOMemory     func(*avifDecoder, []byte, uint64) int
@@ -148,6 +166,15 @@ var (
 	_avifRGBImageFreePixels     func(*avifRGBImage)
 	_avifImageYUVToRGB          func(*avifImage, *avifRGBImage) int
 )
+
+func avifVersion() (int, int) {
+	var major, minor, patch int
+
+	version := _avifVersion()
+	_, _ = fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &patch)
+
+	return major, minor
+}
 
 func avifDecoderCreate() *avifDecoder {
 	return _avifDecoderCreate()
@@ -188,6 +215,16 @@ func avifRGBImageFreePixels(rgb *avifRGBImage) {
 func avifImageYUVToRGB(img *avifImage, rgb *avifRGBImage) bool {
 	ret := _avifImageYUVToRGB(img, rgb)
 	return ret == 0
+}
+
+func toStr(diagnostics avifDiagnostics) string {
+	str := string(diagnostics.Error[:])
+	idx := strings.Index(str, "\x00")
+	if idx != -1 {
+		str = str[:idx]
+	}
+
+	return strings.TrimSpace(str)
 }
 
 const (

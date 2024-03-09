@@ -113,7 +113,7 @@ func BenchmarkDecode(b *testing.B) {
 }
 
 func BenchmarkDecodeDynamic(b *testing.B) {
-	if !Dynamic() {
+	if Dynamic() != nil {
 		b.Errorf("dynamic/shared library not installed")
 		return
 	}
@@ -136,7 +136,7 @@ func BenchmarkDecodeConfig(b *testing.B) {
 }
 
 func BenchmarkDecodeConfigDynamic(b *testing.B) {
-	if !Dynamic() {
+	if Dynamic() != nil {
 		b.Errorf("dynamic/shared library not installed")
 		return
 	}

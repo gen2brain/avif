@@ -82,9 +82,9 @@ func DecodeAll(r io.Reader) (*AVIF, error) {
 	return ret, nil
 }
 
-// Dynamic returns true when library is using the dynamic/shared library.
-func Dynamic() bool {
-	return dynamic
+// Dynamic returns error (if there was any) during opening dynamic/shared library.
+func Dynamic() error {
+	return dynamicErr
 }
 
 func init() {
