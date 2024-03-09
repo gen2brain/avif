@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
 	"io"
 	"os"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -108,9 +110,9 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 	cfg.Width = int(width)
 	cfg.Height = int(height)
 
-	cfg.ColorModel = color.NRGBAModel
+	cfg.ColorModel = color.RGBAModel
 	if depth > 8 {
-		cfg.ColorModel = color.NRGBA64Model
+		cfg.ColorModel = color.RGBA64Model
 	}
 
 	if configOnly {
@@ -170,11 +172,19 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 		}
 
 		if depth > 8 {
-			img := image.NewNRGBA64(image.Rect(0, 0, cfg.Width, cfg.Height))
-			img.Pix = out
+			var b bytes.Buffer
+			pix := unsafe.Slice((*uint16)(unsafe.Pointer(&out[0])), size/2)
+
+			err = binary.Write(&b, binary.BigEndian, pix)
+			if err != nil {
+				return nil, cfg, nil
+			}
+
+			img := image.NewRGBA64(image.Rect(0, 0, cfg.Width, cfg.Height))
+			img.Pix = b.Bytes()
 			images = append(images, img)
 		} else {
-			img := image.NewNRGBA(image.Rect(0, 0, cfg.Width, cfg.Height))
+			img := image.NewRGBA(image.Rect(0, 0, cfg.Width, cfg.Height))
 			img.Pix = out
 			images = append(images, img)
 		}

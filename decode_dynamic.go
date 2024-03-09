@@ -1,6 +1,8 @@
 package avif
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
@@ -23,11 +25,7 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	decoder.IgnoreExif = 1
 	decoder.IgnoreXMP = 1
 	decoder.MaxThreads = int32(runtime.NumCPU())
-
-	name := avifCodecName(2, 1) // AVIF_CODEC_CHOICE_DAV1D, AVIF_CODEC_FLAG_CAN_DECODE
-	if name != "" {
-		decoder.CodecChoice = 2 // AVIF_CODEC_CHOICE_DAV1D
-	}
+	decoder.StrictFlags = 0
 
 	defer avifDecoderDestroy(decoder)
 
@@ -42,51 +40,61 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	cfg.Width = int(decoder.Image.Width)
 	cfg.Height = int(decoder.Image.Height)
 
-	cfg.ColorModel = color.NRGBAModel
+	cfg.ColorModel = color.RGBAModel
 	if decoder.Image.Depth > 8 {
-		cfg.ColorModel = color.NRGBA64Model
+		cfg.ColorModel = color.RGBA64Model
 	}
 
 	if configOnly {
 		return nil, cfg, nil
 	}
 
-	size := cfg.Width * cfg.Height * 4
-	if decoder.Image.Depth > 8 {
-		size = cfg.Width * cfg.Height * 8
-	}
-
 	delay := make([]float64, 0)
 	images := make([]image.Image, 0)
 
+	var rgb avifRGBImage
+	avifRGBImageSetDefaults(&rgb, decoder.Image)
+
+	rgb.MaxThreads = int32(runtime.NumCPU())
+	rgb.AlphaPremultiplied = 1
+	if decoder.Image.Depth > 8 {
+		rgb.Depth = 16
+	}
+
 	for avifDecoderNextImage(decoder) {
-		var rgb avifRGBImage
-
-		avifRGBImageSetDefaults(&rgb, decoder.Image)
-
 		if !avifRGBImageAllocatePixels(&rgb) {
-			return nil, cfg, fmt.Errorf("%w: %s", ErrDecode, string(decoder.Diag.Error[:]))
+			return nil, cfg, ErrDecode
 		}
 
 		if !avifImageYUVToRGB(decoder.Image, &rgb) {
 			avifRGBImageFreePixels(&rgb)
 
-			return nil, cfg, fmt.Errorf("%w: %s", ErrDecode, string(decoder.Diag.Error[:]))
+			return nil, cfg, ErrDecode
 		}
+
+		size := int(rgb.RowBytes) * cfg.Height
 
 		if decoder.Image.Depth > 8 {
-			img := image.NewNRGBA64(image.Rect(0, 0, cfg.Width, cfg.Height))
-			copy(img.Pix, unsafe.Slice(rgb.Pixels, size))
+			var b bytes.Buffer
+			pix := unsafe.Slice((*uint16)(unsafe.Pointer(rgb.Pixels)), size/2)
+
+			err = binary.Write(&b, binary.BigEndian, pix)
+			if err != nil {
+				return nil, cfg, nil
+			}
+
+			img := image.NewRGBA64(image.Rect(0, 0, cfg.Width, cfg.Height))
+			img.Pix = b.Bytes()
 			images = append(images, img)
 		} else {
-			img := image.NewNRGBA(image.Rect(0, 0, cfg.Width, cfg.Height))
+			img := image.NewRGBA(image.Rect(0, 0, cfg.Width, cfg.Height))
 			copy(img.Pix, unsafe.Slice(rgb.Pixels, size))
 			images = append(images, img)
 		}
 
-		delay = append(delay, decoder.ImageTiming.Duration)
-
 		avifRGBImageFreePixels(&rgb)
+
+		delay = append(delay, decoder.ImageTiming.Duration)
 
 		if !decodeAll {
 			break
@@ -118,7 +126,6 @@ func init() {
 	purego.RegisterLibFunc(&_avifDecoderSetIOMemory, libavif, "avifDecoderSetIOMemory")
 	purego.RegisterLibFunc(&_avifDecoderParse, libavif, "avifDecoderParse")
 	purego.RegisterLibFunc(&_avifDecoderNextImage, libavif, "avifDecoderNextImage")
-	purego.RegisterLibFunc(&_avifCodecName, libavif, "avifCodecName")
 	purego.RegisterLibFunc(&_avifRGBImageSetDefaults, libavif, "avifRGBImageSetDefaults")
 	purego.RegisterLibFunc(&_avifRGBImageAllocatePixels, libavif, "avifRGBImageAllocatePixels")
 	purego.RegisterLibFunc(&_avifRGBImageFreePixels, libavif, "avifRGBImageFreePixels")
@@ -136,7 +143,6 @@ var (
 	_avifDecoderSetIOMemory     func(*avifDecoder, []byte, uint64) int
 	_avifDecoderParse           func(*avifDecoder) int
 	_avifDecoderNextImage       func(*avifDecoder) int
-	_avifCodecName              func(int, int) string
 	_avifRGBImageSetDefaults    func(*avifRGBImage, *avifImage)
 	_avifRGBImageAllocatePixels func(*avifRGBImage) int
 	_avifRGBImageFreePixels     func(*avifRGBImage)
@@ -166,12 +172,8 @@ func avifDecoderNextImage(decoder *avifDecoder) bool {
 	return ret == 0
 }
 
-func avifCodecName(choice, required int) string {
-	return _avifCodecName(choice, required)
-}
-
-func avifRGBImageSetDefaults(rgb *avifRGBImage, image *avifImage) {
-	_avifRGBImageSetDefaults(rgb, image)
+func avifRGBImageSetDefaults(rgb *avifRGBImage, img *avifImage) {
+	_avifRGBImageSetDefaults(rgb, img)
 }
 
 func avifRGBImageAllocatePixels(rgb *avifRGBImage) bool {
@@ -183,10 +185,16 @@ func avifRGBImageFreePixels(rgb *avifRGBImage) {
 	_avifRGBImageFreePixels(rgb)
 }
 
-func avifImageYUVToRGB(image *avifImage, rgb *avifRGBImage) bool {
-	ret := _avifImageYUVToRGB(image, rgb)
+func avifImageYUVToRGB(img *avifImage, rgb *avifRGBImage) bool {
+	ret := _avifImageYUVToRGB(img, rgb)
 	return ret == 0
 }
+
+const (
+	avifPixelFormatYuv444 = 1
+	avifPixelFormatYuv422 = 2
+	avifPixelFormatYuv420 = 3
+)
 
 type avifImage struct {
 	Width                   uint32

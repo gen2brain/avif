@@ -22,12 +22,12 @@ void deallocate(void *ptr) {
 __attribute__((export_name("decode")))
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height,
     uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out) {
-    avifRGBImage rgb;
 
     avifDecoder *decoder = avifDecoderCreate();
     decoder->ignoreExif = 1;
     decoder->ignoreXMP = 1;
     decoder->maxThreads = 0;
+    decoder->strictFlags = 0;
 
     avifResult result = avifDecoderSetIOMemory(decoder, avif_in, avif_in_size);
     if(result != AVIF_RESULT_OK) {
@@ -51,9 +51,16 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
         return 1;
     }
 
-    while(avifDecoderNextImage(decoder) == AVIF_RESULT_OK) {
-        avifRGBImageSetDefaults(&rgb, decoder->image);
+    avifRGBImage rgb;
+    avifRGBImageSetDefaults(&rgb, decoder->image);
 
+    rgb.maxThreads = 0;
+    rgb.alphaPremultiplied = 1;
+    if(decoder->image->depth > 8) {
+        rgb.depth = 16;
+    }
+
+    while(avifDecoderNextImage(decoder) == AVIF_RESULT_OK) {
         result = avifRGBImageAllocatePixels(&rgb);
         if(result != AVIF_RESULT_OK) {
             avifDecoderDestroy(decoder);
