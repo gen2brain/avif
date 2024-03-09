@@ -82,6 +82,11 @@ func DecodeAll(r io.Reader) (*AVIF, error) {
 	return ret, nil
 }
 
+// Dynamic returns true when library is using the dynamic/shared library.
+func Dynamic() bool {
+	return dynamic
+}
+
 func init() {
 	image.RegisterFormat("avif", "????ftypavif", Decode, DecodeConfig)
 	image.RegisterFormat("avif", "????ftypavis", Decode, DecodeConfig)
