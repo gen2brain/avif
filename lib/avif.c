@@ -56,8 +56,13 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
 
     rgb.maxThreads = 0;
     rgb.alphaPremultiplied = 1;
+
     if(decoder->image->depth > 8) {
         rgb.depth = 16;
+    }
+
+    if(decoder->imageCount > 1 && decode_all) {
+        rgb.chromaUpsampling = AVIF_CHROMA_UPSAMPLING_FASTEST;
     }
 
     while(avifDecoderNextImage(decoder) == AVIF_RESULT_OK) {

@@ -58,8 +58,13 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 
 	rgb.MaxThreads = int32(runtime.NumCPU())
 	rgb.AlphaPremultiplied = 1
+
 	if decoder.Image.Depth > 8 {
 		rgb.Depth = 16
+	}
+
+	if decoder.ImageCount > 1 && decodeAll {
+		rgb.ChromaUpsampling = avifChromaUpsamplingFastest
 	}
 
 	for avifDecoderNextImage(decoder) {
@@ -228,9 +233,7 @@ func toStr(diagnostics avifDiagnostics) string {
 }
 
 const (
-	avifPixelFormatYuv444 = 1
-	avifPixelFormatYuv422 = 2
-	avifPixelFormatYuv420 = 3
+	avifChromaUpsamplingFastest = 1
 )
 
 type avifImage struct {
