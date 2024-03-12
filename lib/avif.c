@@ -3,14 +3,14 @@
 
 #include "avif/avif.h"
 
-void *allocate(size_t size);
+void* allocate(size_t size);
 void deallocate(void *ptr);
 
-int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height,
-    uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out);
+int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height, uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out);
+uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed);
 
 __attribute__((export_name("allocate")))
-void *allocate(size_t size) {
+void* allocate(size_t size) {
     return malloc(size);
 }
 
@@ -94,4 +94,80 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
 
     avifDecoderDestroy(decoder);
     return 1;
+}
+
+__attribute__((export_name("encode")))
+uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed) {
+    avifResult result;
+
+    avifImage *image = avifImageCreate(width, height, 8, AVIF_PIXEL_FORMAT_YUV420);
+
+    avifRGBImage rgb;
+    avifRGBImageSetDefaults(&rgb, image);
+
+    rgb.maxThreads = 0;
+    rgb.alphaPremultiplied = 1;
+
+    result = avifRGBImageAllocatePixels(&rgb);
+    if(result != AVIF_RESULT_OK) {
+        avifImageDestroy(image);
+        return 0;
+    }
+
+    rgb.pixels = rgb_in;
+
+    result = avifImageRGBToYUV(image, &rgb);
+    if(result != AVIF_RESULT_OK) {
+        avifImageDestroy(image);
+        avifRGBImageFreePixels(&rgb);
+        return 0;
+    }
+
+    avifRWData output = AVIF_DATA_EMPTY;
+
+    avifEncoder *encoder = avifEncoderCreate();
+    encoder->maxThreads = 0;
+    encoder->quality = quality;
+    encoder->qualityAlpha = quality_alpha;
+    encoder->speed = speed;
+
+    result = avifEncoderAddImage(encoder, image, 1, AVIF_ADD_IMAGE_FLAG_SINGLE);
+    if(result != AVIF_RESULT_OK) {
+        avifImageDestroy(image);
+        avifRGBImageFreePixels(&rgb);
+        avifEncoderDestroy(encoder);
+        return 0;
+    }
+
+    result = avifEncoderFinish(encoder, &output);
+    if(result != AVIF_RESULT_OK) {
+        avifImageDestroy(image);
+        avifRGBImageFreePixels(&rgb);
+        avifEncoderDestroy(encoder);
+        return 0;
+    }
+
+    *size = output.size;
+
+    avifImageDestroy(image);
+    avifRGBImageFreePixels(&rgb);
+    avifEncoderDestroy(encoder);
+
+    return output.data;
+}
+
+
+int pthread_create(int a, int b, int c, int d) {
+    return 0;
+}
+
+int pthread_join(int a, int b) {
+    return 0;
+}
+
+int setjmp(int a) {
+    return 0;
+}
+
+void longjmp(int a, int b) {
 }

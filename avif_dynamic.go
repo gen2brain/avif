@@ -117,6 +117,59 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	return av, cfg, nil
 }
 
+func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error {
+	i := imageToRGBA(m)
+
+	img := avifImageCreate(i.Bounds().Dx(), i.Bounds().Dy(), 8, avifPixelFormatYuv420)
+	defer avifImageDestroy(img)
+
+	var rgb avifRGBImage
+	avifRGBImageSetDefaults(&rgb, img)
+
+	rgb.MaxThreads = int32(runtime.NumCPU())
+	rgb.AlphaPremultiplied = 1
+
+	if !avifRGBImageAllocatePixels(&rgb) {
+		return ErrEncode
+	}
+	defer avifRGBImageFreePixels(&rgb)
+
+	copy(unsafe.Slice(rgb.Pixels, rgb.RowBytes*rgb.Height), i.Pix)
+
+	if !avifImageRGBToYuv(img, &rgb) {
+		return ErrEncode
+	}
+
+	var output avifRWData
+	defer _avifRWDataFree(&output)
+
+	encoder := avifEncoderCreate()
+	defer avifEncoderDestroy(encoder)
+
+	encoder.MaxThreads = int32(runtime.NumCPU())
+	encoder.Quality = int32(quality)
+	encoder.QualityAlpha = int32(qualityAlpha)
+	encoder.Speed = int32(speed)
+
+	if !avifEncoderAddImage(encoder, img, 1, avifAddImageFlagSingle) {
+		return ErrEncode
+	}
+
+	if !avifEncoderFinish(encoder, &output) {
+		return ErrEncode
+	}
+	defer avifRWDataFree(&output)
+
+	buf := unsafe.Slice(output.Data, output.Size)
+
+	_, err := w.Write(buf)
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
+}
+
 func init() {
 	var err error
 	defer func() {
@@ -145,6 +198,14 @@ func init() {
 	purego.RegisterLibFunc(&_avifRGBImageAllocatePixels, libavif, "avifRGBImageAllocatePixels")
 	purego.RegisterLibFunc(&_avifRGBImageFreePixels, libavif, "avifRGBImageFreePixels")
 	purego.RegisterLibFunc(&_avifImageYUVToRGB, libavif, "avifImageYUVToRGB")
+	purego.RegisterLibFunc(&_avifImageRGBToYUV, libavif, "avifImageRGBToYUV")
+	purego.RegisterLibFunc(&_avifImageCreate, libavif, "avifImageCreate")
+	purego.RegisterLibFunc(&_avifImageDestroy, libavif, "avifImageDestroy")
+	purego.RegisterLibFunc(&_avifEncoderCreate, libavif, "avifEncoderCreate")
+	purego.RegisterLibFunc(&_avifEncoderDestroy, libavif, "avifEncoderDestroy")
+	purego.RegisterLibFunc(&_avifEncoderAddImage, libavif, "avifEncoderAddImage")
+	purego.RegisterLibFunc(&_avifEncoderFinish, libavif, "avifEncoderFinish")
+	purego.RegisterLibFunc(&_avifRWDataFree, libavif, "avifRWDataFree")
 
 	major, _ := avifVersion()
 	if major < 1 {
@@ -170,6 +231,14 @@ var (
 	_avifRGBImageAllocatePixels func(*avifRGBImage) int
 	_avifRGBImageFreePixels     func(*avifRGBImage)
 	_avifImageYUVToRGB          func(*avifImage, *avifRGBImage) int
+	_avifImageRGBToYUV          func(*avifImage, *avifRGBImage) int
+	_avifImageCreate            func(int, int, int, int) *avifImage
+	_avifImageDestroy           func(*avifImage)
+	_avifEncoderCreate          func() *avifEncoder
+	_avifEncoderDestroy         func(*avifEncoder)
+	_avifEncoderAddImage        func(*avifEncoder, *avifImage, uint64, int) int
+	_avifEncoderFinish          func(*avifEncoder, *avifRWData) int
+	_avifRWDataFree             func(*avifRWData)
 )
 
 func avifVersion() (int, int) {
@@ -222,6 +291,41 @@ func avifImageYUVToRGB(img *avifImage, rgb *avifRGBImage) bool {
 	return ret == 0
 }
 
+func avifImageRGBToYuv(img *avifImage, rgb *avifRGBImage) bool {
+	ret := _avifImageRGBToYUV(img, rgb)
+	return ret == 0
+}
+
+func avifImageCreate(width, height, depth, format int) *avifImage {
+	return _avifImageCreate(width, height, depth, format)
+}
+
+func avifImageDestroy(img *avifImage) {
+	_avifImageDestroy(img)
+}
+
+func avifEncoderCreate() *avifEncoder {
+	return _avifEncoderCreate()
+}
+
+func avifEncoderDestroy(encoder *avifEncoder) {
+	_avifEncoderDestroy(encoder)
+}
+
+func avifEncoderAddImage(encoder *avifEncoder, img *avifImage, durationInTimescales uint64, flags int) bool {
+	ret := _avifEncoderAddImage(encoder, img, durationInTimescales, flags)
+	return ret == 0
+}
+
+func avifEncoderFinish(encoder *avifEncoder, output *avifRWData) bool {
+	ret := _avifEncoderFinish(encoder, output)
+	return ret == 0
+}
+
+func avifRWDataFree(output *avifRWData) {
+	_avifRWDataFree(output)
+}
+
 func toStr(diagnostics avifDiagnostics) string {
 	str := string(diagnostics.Error[:])
 	idx := strings.Index(str, "\x00")
@@ -234,6 +338,11 @@ func toStr(diagnostics avifDiagnostics) string {
 
 const (
 	avifChromaUpsamplingFastest = 1
+
+	avifPixelFormatYuv444 = 1
+	avifPixelFormatYuv420 = 3
+
+	avifAddImageFlagSingle = 2
 )
 
 type avifImage struct {
@@ -369,4 +478,42 @@ type avifDecoder struct {
 	Diag                 avifDiagnostics
 	Io                   *avifIO
 	Data                 *avifDecoderData
+}
+
+type avifEncoderData struct{}
+
+type avifCodecSpecificOptions struct{}
+
+type avifScalingMode struct {
+	Horizontal avifFraction
+	Vertical   avifFraction
+}
+
+type avifFraction struct {
+	N int32
+	D int32
+}
+
+type avifEncoder struct {
+	CodecChoice       uint32
+	MaxThreads        int32
+	Speed             int32
+	KeyframeInterval  int32
+	Timescale         uint64
+	RepetitionCount   int32
+	ExtraLayerCount   uint32
+	Quality           int32
+	QualityAlpha      int32
+	MinQuantizer      int32
+	MaxQuantizer      int32
+	MinQuantizerAlpha int32
+	MaxQuantizerAlpha int32
+	TileRowsLog2      int32
+	TileColsLog2      int32
+	AutoTiling        int32
+	ScalingMode       avifScalingMode
+	IoStats           avifIOStats
+	Diag              avifDiagnostics
+	Data              *avifEncoderData
+	CsOptions         *avifCodecSpecificOptions
 }

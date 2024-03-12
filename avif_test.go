@@ -103,6 +103,18 @@ func TestDecodeConfig(t *testing.T) {
 	}
 }
 
+func TestEncode(t *testing.T) {
+	img, err := Decode(bytes.NewReader(testAvif8))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = Encode(io.Discard, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func BenchmarkDecode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _, err := decode(bytes.NewReader(testAvif8), false, false)
@@ -143,6 +155,39 @@ func BenchmarkDecodeConfigDynamic(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_, _, err := decodeDynamic(bytes.NewReader(testAvif8), true, false)
+		if err != nil {
+			b.Error(err)
+		}
+	}
+}
+
+func BenchmarkEncode(b *testing.B) {
+	img, err := Decode(bytes.NewReader(testAvif8))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		err := encode(io.Discard, img, DefaultQuality, DefaultQuality, DefaultSpeed)
+		if err != nil {
+			b.Error(err)
+		}
+	}
+}
+
+func BenchmarkEncodeDynamic(b *testing.B) {
+	if Dynamic() != nil {
+		b.Errorf("dynamic/shared library not installed")
+		return
+	}
+
+	img, err := Decode(bytes.NewReader(testAvif8))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		err := encodeDynamic(io.Discard, img, DefaultQuality, DefaultQuality, DefaultSpeed)
 		if err != nil {
 			b.Error(err)
 		}

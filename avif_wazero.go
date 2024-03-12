@@ -2,6 +2,7 @@ package avif
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	_ "embed"
 	"encoding/binary"
@@ -15,11 +16,10 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
-	"github.com/tetratelabs/wazero/imports/emscripten"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-//go:embed lib/avif.wasm
+//go:embed lib/avif.wasm.gz
 var avifWasm []byte
 
 func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error) {
@@ -209,12 +209,69 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 	return ret, cfg, nil
 }
 
+func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error {
+	if !initialized.Load() {
+		initialize()
+	}
+
+	img := imageToRGBA(m)
+	ctx := context.Background()
+
+	res, err := _alloc.Call(ctx, uint64(len(img.Pix)))
+	if err != nil {
+		return fmt.Errorf("alloc: %w", err)
+	}
+	inPtr := res[0]
+	defer _free.Call(ctx, inPtr)
+
+	ok := mod.Memory().Write(uint32(inPtr), img.Pix)
+	if !ok {
+		return ErrMemWrite
+	}
+
+	res, err = _alloc.Call(ctx, 8)
+	if err != nil {
+		return fmt.Errorf("alloc: %w", err)
+	}
+	sizePtr := res[0]
+	defer _free.Call(ctx, sizePtr)
+
+	res, err = _encode.Call(ctx, inPtr, uint64(img.Bounds().Dx()), uint64(img.Bounds().Dy()), sizePtr, uint64(quality), uint64(qualityAlpha), uint64(speed))
+	if err != nil {
+		return fmt.Errorf("encode: %w", err)
+	}
+
+	size, ok := mod.Memory().ReadUint64Le(uint32(sizePtr))
+	if !ok {
+		return ErrMemRead
+	}
+
+	if size == 0 {
+		return ErrEncode
+	}
+
+	defer _free.Call(ctx, res[0])
+
+	out, ok := mod.Memory().Read(uint32(res[0]), uint32(size))
+	if !ok {
+		return ErrMemRead
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
+}
+
 var (
 	mod api.Module
 
 	_alloc  api.Function
 	_free   api.Function
 	_decode api.Function
+	_encode api.Function
 
 	initialized atomic.Bool
 )
@@ -227,12 +284,18 @@ func initialize() {
 	ctx := context.Background()
 	rt := wazero.NewRuntime(ctx)
 
-	compiled, err := rt.CompileModule(ctx, avifWasm)
+	r, err := gzip.NewReader(bytes.NewReader(avifWasm))
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = emscripten.InstantiateForModule(ctx, rt, compiled)
+	var data bytes.Buffer
+	_, err = data.ReadFrom(r)
+	if err != nil {
+		panic(err)
+	}
+
+	compiled, err := rt.CompileModule(ctx, data.Bytes())
 	if err != nil {
 		panic(err)
 	}
@@ -247,6 +310,7 @@ func initialize() {
 	_alloc = mod.ExportedFunction("allocate")
 	_free = mod.ExportedFunction("deallocate")
 	_decode = mod.ExportedFunction("decode")
+	_encode = mod.ExportedFunction("encode")
 
 	initialized.Store(true)
 }
