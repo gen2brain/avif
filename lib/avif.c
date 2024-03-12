@@ -165,6 +165,58 @@ int pthread_join(int a, int b) {
     return 0;
 }
 
+int pthread_once(int a, int b) {
+    return 0;
+}
+
+int pthread_mutex_init(int a, int b) {
+    return 0;
+}
+
+int pthread_mutex_lock(int a) {
+    return 0;
+}
+
+int pthread_mutex_unlock(int a) {
+    return 0;
+}
+
+int pthread_mutex_destroy(int a) {
+    return 0;
+}
+
+int pthread_cond_init(int a, int b) {
+    return 0;
+}
+
+int pthread_cond_signal(int a) {
+    return 0;
+}
+
+int pthread_cond_wait(int a, int b) {
+    return 0;
+}
+
+int pthread_cond_broadcast(int a) {
+    return 0;
+}
+
+int pthread_cond_destroy(int a) {
+    return 0;
+}
+
+int pthread_attr_init(int a) {
+    return 0;
+}
+
+int pthread_attr_setstacksize(int a, int b) {
+    return 0;
+}
+
+int pthread_attr_destroy(int a) {
+    return 0;
+}
+
 int setjmp(int a) {
     return 0;
 }
