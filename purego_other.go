@@ -1,6 +1,6 @@
 //go:build !unix && !darwin && !windows
 
-package webp
+package avif
 
 import (
 	"fmt"
