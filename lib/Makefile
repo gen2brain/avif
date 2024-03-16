@@ -21,6 +21,7 @@ all: $(BIN)
 
 $(LIBAVIF_SRC):
 	git clone -b $(LIBAVIF_VERSION) --depth 1 https://github.com/AOMediaCodec/libavif
+	sed -i '/pthread_create\|pthread_join/d' $(LIBAVIF_SRC)/src/reformat.c
 	mkdir -p $(LIBAVIF_BUILD)
 	test -d $@
 
