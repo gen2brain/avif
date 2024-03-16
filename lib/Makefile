@@ -89,6 +89,7 @@ $(BIN): $(LIBAVIF_BUILD)/libavif.a
 		-Wl,--no-entry \
 		-mexec-model=reactor \
 		-mnontrapping-fptoint \
+		-z stack-size=1048576 \
 		-I $(LIBAVIF_SRC)/include \
 		-o $@ \
 		-Wall \

@@ -156,15 +156,6 @@ uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int qualit
     return output.data;
 }
 
-
-int pthread_create(int a, int b, int c, int d) {
-    return 0;
-}
-
-int pthread_join(int a, int b) {
-    return 0;
-}
-
 int setjmp(int a) {
     return 0;
 }
