@@ -1,5 +1,5 @@
 LIBAVIF_VERSION = v1.0.4
-LIBAVIF_AOM_VERSION = v3.8.1
+LIBAVIF_AOM_VERSION = v3.8.2
 LIBAVIF_YUV_VERSION = stable
 
 LIBAVIF_SRC = $(PWD)/libavif
@@ -88,6 +88,10 @@ $(BIN): $(LIBAVIF_BUILD)/libavif.a
 	$(CC) \
 		-O3 \
 		-Wl,--no-entry \
+		-Wl,--export=malloc \
+		-Wl,--export=free \
+		-Wl,--export=decode \
+		-Wl,--export=encode \
 		-mexec-model=reactor \
 		-mnontrapping-fptoint \
 		-z stack-size=1048576 \

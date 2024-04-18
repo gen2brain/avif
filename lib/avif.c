@@ -3,23 +3,9 @@
 
 #include "avif/avif.h"
 
-void* allocate(size_t size);
-void deallocate(void *ptr);
-
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height, uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out);
 uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed);
 
-__attribute__((export_name("allocate")))
-void* allocate(size_t size) {
-    return malloc(size);
-}
-
-__attribute__((export_name("deallocate")))
-void deallocate(void *ptr) {
-    free(ptr);
-}
-
-__attribute__((export_name("decode")))
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height,
     uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out) {
 
@@ -96,7 +82,6 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
     return 1;
 }
 
-__attribute__((export_name("encode")))
 uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed) {
     avifResult result;
 
