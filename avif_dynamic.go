@@ -141,7 +141,7 @@ func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int)
 	}
 
 	var output avifRWData
-	defer _avifRWDataFree(&output)
+	defer avifRWDataFree(&output)
 
 	encoder := avifEncoderCreate()
 	defer avifEncoderDestroy(encoder)
@@ -158,11 +158,8 @@ func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int)
 	if !avifEncoderFinish(encoder, &output) {
 		return ErrEncode
 	}
-	defer avifRWDataFree(&output)
 
-	buf := unsafe.Slice(output.Data, output.Size)
-
-	_, err := w.Write(buf)
+	_, err := w.Write(unsafe.Slice(output.Data, output.Size))
 	if err != nil {
 		return fmt.Errorf("write: %w", err)
 	}

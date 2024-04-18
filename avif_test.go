@@ -3,6 +3,7 @@ package avif
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -55,8 +56,9 @@ func TestDecodeWASM(t *testing.T) {
 }
 
 func TestDecodeDynamic(t *testing.T) {
-	if Dynamic() != nil {
-		return
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		t.Skip()
 	}
 
 	img, _, err := decodeDynamic(bytes.NewReader(testAvif8), false, false)
@@ -153,9 +155,9 @@ func BenchmarkDecode(b *testing.B) {
 }
 
 func BenchmarkDecodeDynamic(b *testing.B) {
-	if Dynamic() != nil {
-		b.Errorf("dynamic/shared library not installed")
-		return
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		b.Skip()
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -176,9 +178,9 @@ func BenchmarkDecodeConfig(b *testing.B) {
 }
 
 func BenchmarkDecodeConfigDynamic(b *testing.B) {
-	if Dynamic() != nil {
-		b.Errorf("dynamic/shared library not installed")
-		return
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		b.Skip()
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -204,9 +206,9 @@ func BenchmarkEncode(b *testing.B) {
 }
 
 func BenchmarkEncodeDynamic(b *testing.B) {
-	if Dynamic() != nil {
-		b.Errorf("dynamic/shared library not installed")
-		return
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		b.Skip()
 	}
 
 	img, err := Decode(bytes.NewReader(testAvif8))
