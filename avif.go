@@ -156,8 +156,6 @@ func Dynamic() error {
 }
 
 const (
-	avifMaxHeaderSize = 16384
-
 	avifChromaUpsamplingFastest = 1
 
 	avifPixelFormatYuv444 = 1

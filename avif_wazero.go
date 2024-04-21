@@ -29,17 +29,9 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 	var cfg image.Config
 	var data []byte
 
-	if configOnly {
-		data = make([]byte, avifMaxHeaderSize)
-		_, err = r.Read(data)
-		if err != nil {
-			return nil, cfg, fmt.Errorf("read: %w", err)
-		}
-	} else {
-		data, err = io.ReadAll(r)
-		if err != nil {
-			return nil, cfg, fmt.Errorf("read: %w", err)
-		}
+	data, err = io.ReadAll(r)
+	if err != nil {
+		return nil, cfg, fmt.Errorf("read: %w", err)
 	}
 
 	inSize := len(data)
