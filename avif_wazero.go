@@ -27,15 +27,24 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 		initialize()
 	}
 
+	var err error
 	var cfg image.Config
-	var avif bytes.Buffer
+	var data []byte
 
-	_, err := avif.ReadFrom(r)
-	if err != nil {
-		return nil, cfg, fmt.Errorf("read: %w", err)
+	if configOnly {
+		data = make([]byte, avifMaxHeaderSize)
+		_, err = r.Read(data)
+		if err != nil {
+			return nil, cfg, fmt.Errorf("read: %w", err)
+		}
+	} else {
+		data, err = io.ReadAll(r)
+		if err != nil {
+			return nil, cfg, fmt.Errorf("read: %w", err)
+		}
 	}
 
-	inSize := avif.Len()
+	inSize := len(data)
 	ctx := context.Background()
 
 	res, err := _alloc.Call(ctx, uint64(inSize))
@@ -45,7 +54,7 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 	inPtr := res[0]
 	defer _free.Call(ctx, inPtr)
 
-	ok := mod.Memory().Write(uint32(inPtr), avif.Bytes())
+	ok := mod.Memory().Write(uint32(inPtr), data)
 	if !ok {
 		return nil, cfg, ErrMemWrite
 	}

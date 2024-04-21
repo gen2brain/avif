@@ -12,6 +12,7 @@ LIBAVIF_YUV_BUILD = $(LIBAVIF_YUV_SRC)/build
 WASI_SDK_PATH = /opt/wasi-sdk
 export CC = $(WASI_SDK_PATH)/bin/clang --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot --target=wasm32-wasi
 export CFLAGS = -O3
+#export CFLAGS = -mllvm -wasm-enable-sjlj -O3
 
 CMAKE_TOOLCHAIN_FILE=$(WASI_SDK_PATH)/share/cmake/wasi-sdk.cmake
 

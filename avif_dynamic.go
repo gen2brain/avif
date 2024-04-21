@@ -17,11 +17,21 @@ import (
 )
 
 func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error) {
+	var err error
 	var cfg image.Config
+	var data []byte
 
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, cfg, err
+	if configOnly {
+		data = make([]byte, avifMaxHeaderSize)
+		_, err = r.Read(data)
+		if err != nil {
+			return nil, cfg, fmt.Errorf("read: %w", err)
+		}
+	} else {
+		data, err = io.ReadAll(r)
+		if err != nil {
+			return nil, cfg, fmt.Errorf("read: %w", err)
+		}
 	}
 
 	decoder := avifDecoderCreate()
@@ -334,15 +344,6 @@ func toStr(diagnostics avifDiagnostics) string {
 
 	return strings.TrimSpace(str)
 }
-
-const (
-	avifChromaUpsamplingFastest = 1
-
-	avifPixelFormatYuv444 = 1
-	avifPixelFormatYuv420 = 3
-
-	avifAddImageFlagSingle = 2
-)
 
 type avifImage struct {
 	Width                   uint32

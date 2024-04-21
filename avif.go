@@ -151,6 +151,18 @@ func Dynamic() error {
 	return dynamicErr
 }
 
+const (
+	avifMaxHeaderSize = 16384
+
+	avifChromaUpsamplingFastest = 1
+
+	avifPixelFormatYuv444 = 1
+	avifPixelFormatYuv422 = 2
+	avifPixelFormatYuv420 = 3
+
+	avifAddImageFlagSingle = 2
+)
+
 func imageToRGBA(src image.Image) *image.RGBA {
 	if dst, ok := src.(*image.RGBA); ok {
 		return dst
