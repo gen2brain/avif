@@ -199,11 +199,23 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 	return ret, cfg, nil
 }
 
-func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error {
+func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio) error {
 	initializeOnce()
 
 	img := imageToRGBA(m)
 	ctx := context.Background()
+
+	var chroma int
+	switch subsampleRatio {
+	case image.YCbCrSubsampleRatio444:
+		chroma = avifPixelFormatYuv444
+	case image.YCbCrSubsampleRatio422:
+		chroma = avifPixelFormatYuv422
+	case image.YCbCrSubsampleRatio420:
+		chroma = avifPixelFormatYuv420
+	default:
+		return fmt.Errorf("unsupported chroma %d", subsampleRatio)
+	}
 
 	res, err := _alloc.Call(ctx, uint64(len(img.Pix)))
 	if err != nil {
@@ -224,7 +236,8 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error 
 	sizePtr := res[0]
 	defer _free.Call(ctx, sizePtr)
 
-	res, err = _encode.Call(ctx, inPtr, uint64(img.Bounds().Dx()), uint64(img.Bounds().Dy()), sizePtr, uint64(quality), uint64(qualityAlpha), uint64(speed))
+	res, err = _encode.Call(ctx, inPtr, uint64(img.Bounds().Dx()), uint64(img.Bounds().Dy()), sizePtr, uint64(quality),
+		uint64(qualityAlpha), uint64(speed), uint64(chroma))
 	if err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}

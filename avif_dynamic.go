@@ -129,10 +129,22 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	return av, cfg, nil
 }
 
-func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error {
+func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio) error {
 	i := imageToRGBA(m)
 
-	img := avifImageCreate(i.Bounds().Dx(), i.Bounds().Dy(), 8, avifPixelFormatYuv420)
+	var chroma int
+	switch subsampleRatio {
+	case image.YCbCrSubsampleRatio444:
+		chroma = avifPixelFormatYuv444
+	case image.YCbCrSubsampleRatio422:
+		chroma = avifPixelFormatYuv422
+	case image.YCbCrSubsampleRatio420:
+		chroma = avifPixelFormatYuv420
+	default:
+		return fmt.Errorf("unsupported chroma %d", subsampleRatio)
+	}
+
+	img := avifImageCreate(i.Bounds().Dx(), i.Bounds().Dy(), 8, chroma)
 	defer avifImageDestroy(img)
 
 	var rgb avifRGBImage

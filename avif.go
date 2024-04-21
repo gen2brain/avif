@@ -38,6 +38,8 @@ type Options struct {
 	QualityAlpha int
 	// Speed in the range [0,10]. Slower should make for a better quality image in less bytes.
 	Speed int
+	// Chroma subsampling, 444|422|420.
+	ChromaSubsampling image.YCbCrSubsampleRatio
 }
 
 // Decode reads a AVIF image from r and returns it as an image.Image.
@@ -105,12 +107,14 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 	quality := DefaultQuality
 	qualityAlpha := DefaultQuality
 	speed := DefaultSpeed
+	chroma := image.YCbCrSubsampleRatio420
 
 	if o != nil {
 		opt := o[0]
 		quality = opt.Quality
 		qualityAlpha = opt.QualityAlpha
 		speed = opt.Speed
+		chroma = opt.ChromaSubsampling
 
 		if quality <= 0 {
 			quality = DefaultQuality
@@ -132,12 +136,12 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 	}
 
 	if dynamic {
-		err := encodeDynamic(w, m, quality, qualityAlpha, speed)
+		err := encodeDynamic(w, m, quality, qualityAlpha, speed, chroma)
 		if err != nil {
 			return err
 		}
 	} else {
-		err := encode(w, m, quality, qualityAlpha, speed)
+		err := encode(w, m, quality, qualityAlpha, speed, chroma)
 		if err != nil {
 			return err
 		}

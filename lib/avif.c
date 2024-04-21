@@ -3,11 +3,11 @@
 
 #include "avif/avif.h"
 
-int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height, uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out);
-uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed);
+int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height, uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *out);
+uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma);
 
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height,
-    uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *rgb_out) {
+    uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *out) {
 
     avifDecoder *decoder = avifDecoderCreate();
     decoder->ignoreExif = 1;
@@ -66,7 +66,7 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
         }
 
         int buf_size = rgb.rowBytes * rgb.height;
-        memcpy(rgb_out + buf_size*decoder->imageIndex, rgb.pixels, buf_size);
+        memcpy(out + buf_size*decoder->imageIndex, rgb.pixels, buf_size);
 
         memcpy(delay + sizeof(double)*decoder->imageIndex, &decoder->imageTiming.duration, sizeof(double));
 
@@ -82,10 +82,10 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
     return 1;
 }
 
-uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed) {
+uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma) {
     avifResult result;
 
-    avifImage *image = avifImageCreate(width, height, 8, AVIF_PIXEL_FORMAT_YUV420);
+    avifImage *image = avifImageCreate(width, height, 8, chroma);
 
     avifRGBImage rgb;
     avifRGBImageSetDefaults(&rgb, image);
