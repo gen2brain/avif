@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"os"
 	"testing"
 )
 
@@ -20,36 +21,36 @@ var testAvif10 []byte
 var testAvifAnim []byte
 
 func TestDecode(t *testing.T) {
-	img, err := Decode(bytes.NewReader(testAvif8))
+	img, _, err := decode(bytes.NewReader(testAvif8), false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = jpeg.Encode(io.Discard, img, nil)
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = jpeg.Encode(w, img.Image[0], nil)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestDecode10(t *testing.T) {
-	img, err := Decode(bytes.NewReader(testAvif10))
+	img, _, err := decode(bytes.NewReader(testAvif10), false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = jpeg.Encode(io.Discard, img, nil)
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func TestDecodeWASM(t *testing.T) {
-	img, _, err := decode(bytes.NewReader(testAvif8), false, false)
+	w, err := writeCloser()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer w.Close()
 
-	err = jpeg.Encode(io.Discard, img.Image[0], nil)
+	err = jpeg.Encode(w, img.Image[0], nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -66,14 +67,70 @@ func TestDecodeDynamic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = jpeg.Encode(io.Discard, img.Image[0], nil)
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = jpeg.Encode(w, img.Image[0], nil)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestDecode10Dynamic(t *testing.T) {
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		t.Skip()
+	}
+
+	img, _, err := decodeDynamic(bytes.NewReader(testAvif10), false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = jpeg.Encode(w, img.Image[0], nil)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestDecodeAnim(t *testing.T) {
-	ret, err := DecodeAll(bytes.NewReader(testAvifAnim))
+	ret, _, err := decode(bytes.NewReader(testAvifAnim), false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ret.Image) != len(ret.Delay) {
+		t.Errorf("got %d, want %d", len(ret.Delay), len(ret.Image))
+	}
+
+	if len(ret.Image) != 17 {
+		t.Errorf("got %d, want %d", len(ret.Image), 17)
+	}
+
+	for _, img := range ret.Image {
+		err = jpeg.Encode(io.Discard, img, nil)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func TestDecodeAnimDynamic(t *testing.T) {
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		t.Skip()
+	}
+
+	ret, _, err := decodeDynamic(bytes.NewReader(testAvifAnim), false, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +157,13 @@ func TestImageDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = jpeg.Encode(io.Discard, img, nil)
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = jpeg.Encode(w, img, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -112,14 +175,40 @@ func TestImageDecodeAnim(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = jpeg.Encode(io.Discard, img, nil)
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = jpeg.Encode(w, img, nil)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestDecodeConfig(t *testing.T) {
-	cfg, err := DecodeConfig(bytes.NewReader(testAvif8))
+	_, cfg, err := decode(bytes.NewReader(testAvif8), true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.Width != 512 {
+		t.Errorf("width: got %d, want %d", cfg.Width, 512)
+	}
+
+	if cfg.Height != 512 {
+		t.Errorf("height: got %d, want %d", cfg.Height, 512)
+	}
+}
+
+func TestDecodeConfigDynamic(t *testing.T) {
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		t.Skip()
+	}
+
+	_, cfg, err := decodeDynamic(bytes.NewReader(testAvif8), true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +228,36 @@ func TestEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = Encode(io.Discard, img)
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = encode(w, img, DefaultQuality, DefaultQuality, DefaultSpeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEncodeDynamic(t *testing.T) {
+	if err := Dynamic(); err != nil {
+		fmt.Println(err)
+		t.Skip()
+	}
+
+	img, err := Decode(bytes.NewReader(testAvif8))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w, err := writeCloser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	err = encodeDynamic(w, img, DefaultQuality, DefaultQuality, DefaultSpeed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,4 +340,29 @@ func BenchmarkEncodeDynamic(b *testing.B) {
 			b.Error(err)
 		}
 	}
+}
+
+type discard struct{}
+
+func (d discard) Close() error {
+	return nil
+}
+
+func (discard) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+var discardCloser io.WriteCloser = discard{}
+
+func writeCloser(s ...string) (io.WriteCloser, error) {
+	if len(s) > 0 {
+		f, err := os.Create(s[0])
+		if err != nil {
+			return nil, err
+		}
+
+		return f, nil
+	}
+
+	return discardCloser, nil
 }
