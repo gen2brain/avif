@@ -272,6 +272,7 @@ func initialize() {
 	if err != nil {
 		panic(err)
 	}
+	defer r.Close()
 
 	var data bytes.Buffer
 	_, err = data.ReadFrom(r)
