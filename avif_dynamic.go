@@ -1,4 +1,4 @@
-//go:build unix || darwin || windows
+//go:build (unix || darwin || windows) && !nodynamic
 
 package avif
 

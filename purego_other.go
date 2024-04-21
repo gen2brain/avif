@@ -1,4 +1,4 @@
-//go:build !unix && !darwin && !windows
+//go:build (!unix && !darwin && !windows) || nodynamic
 
 package avif
 
@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"runtime"
 )
 
 var (
 	dynamic    = false
-	dynamicErr = fmt.Errorf("avif: unsupported os: %s", runtime.GOOS)
+	dynamicErr = fmt.Errorf("avif: dynamic disabled")
 )
 
 func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error) {
