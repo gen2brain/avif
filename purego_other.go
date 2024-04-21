@@ -17,7 +17,7 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	return nil, image.Config{}, dynamicErr
 }
 
-func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error {
+func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio) error {
 	return dynamicErr
 }
 
