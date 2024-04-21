@@ -11,7 +11,7 @@ import (
 	"image/color"
 	"io"
 	"os"
-	"sync/atomic"
+	"sync"
 	"unsafe"
 
 	"github.com/tetratelabs/wazero"
@@ -23,9 +23,7 @@ import (
 var avifWasm []byte
 
 func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error) {
-	if !initialized.Load() {
-		initialize()
-	}
+	initializeOnce()
 
 	var err error
 	var cfg image.Config
@@ -202,9 +200,7 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 }
 
 func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int) error {
-	if !initialized.Load() {
-		initialize()
-	}
+	initializeOnce()
 
 	img := imageToRGBA(m)
 	ctx := context.Background()
@@ -265,14 +261,10 @@ var (
 	_decode api.Function
 	_encode api.Function
 
-	initialized atomic.Bool
+	initializeOnce = sync.OnceFunc(initialize)
 )
 
 func initialize() {
-	if initialized.Load() {
-		return
-	}
-
 	ctx := context.Background()
 	rt := wazero.NewRuntime(ctx)
 
@@ -303,6 +295,4 @@ func initialize() {
 	_free = mod.ExportedFunction("free")
 	_decode = mod.ExportedFunction("decode")
 	_encode = mod.ExportedFunction("encode")
-
-	initialized.Store(true)
 }
