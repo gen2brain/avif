@@ -11,7 +11,7 @@ LIBAVIF_YUV_BUILD = $(LIBAVIF_YUV_SRC)/build
 
 WASI_SDK_PATH = /opt/wasi-sdk
 export CC = $(WASI_SDK_PATH)/bin/clang --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot --target=wasm32-wasi
-export CFLAGS = -O3
+export CFLAGS = -O2
 #export CFLAGS = -mllvm -wasm-enable-sjlj -O3
 
 CMAKE_TOOLCHAIN_FILE=$(WASI_SDK_PATH)/share/cmake/wasi-sdk.cmake
@@ -42,7 +42,7 @@ $(LIBAVIF_YUV_SRC): $(LIBAVIF_SRC)
 $(LIBAVIF_AOM_BUILD)/libaom.a: $(LIBAVIF_AOM_SRC)
 	cd $(LIBAVIF_AOM_BUILD); \
 	cmake $(LIBAVIF_AOM_SRC) \
-		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DBUILD_SHARED_LIBS=0 \
 		-DENABLE_DOCS=0 \
 		-DENABLE_EXAMPLES=0 \
@@ -63,7 +63,7 @@ $(LIBAVIF_AOM_BUILD)/libaom.a: $(LIBAVIF_AOM_SRC)
 $(LIBAVIF_YUV_BUILD)/libyuv.a: $(LIBAVIF_YUV_SRC)
 	cd $(LIBAVIF_YUV_BUILD); \
 	cmake $(LIBAVIF_YUV_SRC) \
-		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DBUILD_SHARED_LIBS=0 \
 		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
 
@@ -73,7 +73,7 @@ $(LIBAVIF_YUV_BUILD)/libyuv.a: $(LIBAVIF_YUV_SRC)
 $(LIBAVIF_BUILD)/libavif.a: $(LIBAVIF_AOM_BUILD)/libaom.a $(LIBAVIF_YUV_BUILD)/libyuv.a
 	cd $(LIBAVIF_BUILD); \
 	cmake $(LIBAVIF_SRC) \
-		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DBUILD_SHARED_LIBS=0 \
 		-DAVIF_CODEC_AOM=1 \
 		-DAVIF_LOCAL_AOM=1 \
