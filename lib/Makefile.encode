@@ -1,0 +1,109 @@
+LIBAVIF_VERSION = v1.0.4
+LIBAVIF_AOM_VERSION = v3.8.2
+LIBAVIF_YUV_VERSION = stable
+
+LIBAVIF_SRC = $(PWD)/libavif
+LIBAVIF_BUILD = $(LIBAVIF_SRC)/build
+LIBAVIF_AOM_SRC = $(LIBAVIF_SRC)/ext/aom
+LIBAVIF_AOM_BUILD = $(LIBAVIF_AOM_SRC)/build.libavif
+LIBAVIF_YUV_SRC = $(LIBAVIF_SRC)/ext/libyuv
+LIBAVIF_YUV_BUILD = $(LIBAVIF_YUV_SRC)/build
+
+WASI_SDK_PATH = /opt/wasi-sdk
+export CC = $(WASI_SDK_PATH)/bin/clang --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot --target=wasm32-wasi
+export CFLAGS = -O2
+#export CFLAGS = -mllvm -wasm-enable-sjlj -O3
+
+CMAKE_TOOLCHAIN_FILE=$(WASI_SDK_PATH)/share/cmake/wasi-sdk.cmake
+
+BIN := encode.wasm
+
+all: $(BIN)
+
+$(LIBAVIF_SRC):
+	git clone -b $(LIBAVIF_VERSION) --depth 1 https://github.com/AOMediaCodec/libavif
+	sed -i '/pthread_create\|pthread_join/d' $(LIBAVIF_SRC)/src/reformat.c
+	mkdir -p $(LIBAVIF_BUILD)
+	test -d $@
+
+$(LIBAVIF_AOM_SRC): $(LIBAVIF_SRC)
+	cd $(LIBAVIF_SRC)/ext; \
+	git clone -b $(LIBAVIF_AOM_VERSION) --depth 1 --recursive --jobs `nproc` https://aomedia.googlesource.com/aom
+	mkdir -p $(LIBAVIF_AOM_BUILD)
+	test -d $@
+
+$(LIBAVIF_YUV_SRC): $(LIBAVIF_SRC)
+	cd $(LIBAVIF_SRC)/ext; \
+	git clone -b $(LIBAVIF_YUV_VERSION) --depth 1 https://chromium.googlesource.com/libyuv/libyuv
+	sed -i '/^ADD_EXECUTABLE\|^TARGET_LINK_LIBRARIES/d' $(LIBAVIF_YUV_SRC)/CMakeLists.txt
+	mkdir -p $(LIBAVIF_YUV_BUILD)
+	test -d $@
+
+$(LIBAVIF_AOM_BUILD)/libaom.a: $(LIBAVIF_AOM_SRC)
+	cd $(LIBAVIF_AOM_BUILD); \
+	cmake $(LIBAVIF_AOM_SRC) \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DBUILD_SHARED_LIBS=0 \
+		-DENABLE_DOCS=0 \
+		-DENABLE_EXAMPLES=0 \
+		-DENABLE_TESTDATA=0 \
+		-DENABLE_TESTS=0 \
+		-DENABLE_TOOLS=0 \
+		-DAOM_TARGET_CPU=generic \
+		-DCONFIG_RUNTIME_CPU_DETECT=0 \
+		-DCONFIG_MULTITHREAD=0 \
+		-DCONFIG_WEBM_IO=0 \
+		-DCONFIG_AV1_DECODER=0 \
+		-DCONFIG_AV1_ENCODER=1 \
+		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
+
+	cd $(LIBAVIF_AOM_BUILD); \
+	$(MAKE) -j$(shell nproc)
+
+$(LIBAVIF_YUV_BUILD)/libyuv.a: $(LIBAVIF_YUV_SRC)
+	cd $(LIBAVIF_YUV_BUILD); \
+	cmake $(LIBAVIF_YUV_SRC) \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DBUILD_SHARED_LIBS=0 \
+		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
+
+	cd $(LIBAVIF_YUV_BUILD); \
+	$(MAKE) -j$(shell nproc)
+
+$(LIBAVIF_BUILD)/libavif.a: $(LIBAVIF_AOM_BUILD)/libaom.a $(LIBAVIF_YUV_BUILD)/libyuv.a
+	cd $(LIBAVIF_BUILD); \
+	cmake $(LIBAVIF_SRC) \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DBUILD_SHARED_LIBS=0 \
+		-DAVIF_CODEC_AOM=1 \
+		-DAVIF_LOCAL_AOM=1 \
+		-DAVIF_CODEC_AOM_DECODE=0 \
+		-DAVIF_CODEC_AOM_ENCODE=1 \
+		-DAVIF_LOCAL_LIBYUV=1 \
+		-DCMAKE_TOOLCHAIN_FILE=$(CMAKE_TOOLCHAIN_FILE)
+
+	cd $(LIBAVIF_BUILD); \
+	$(MAKE) -j$(shell nproc)
+
+$(BIN): $(LIBAVIF_BUILD)/libavif.a
+	$(CC) \
+		-O3 \
+		-Wl,--no-entry \
+		-Wl,--export=malloc \
+		-Wl,--export=free \
+		-Wl,--export=encode \
+		-mexec-model=reactor \
+		-mnontrapping-fptoint \
+		-z stack-size=1048576 \
+		-I $(LIBAVIF_SRC)/include \
+		-o $@ \
+		-Wall \
+		encode.c \
+		${LIBAVIF_BUILD}/libavif.a \
+		${LIBAVIF_YUV_BUILD}/libyuv.a \
+		${LIBAVIF_AOM_BUILD}/libaom.a
+
+.PHONY: clean
+
+clean:
+	-rm -rf $(LIBAVIF_SRC)
