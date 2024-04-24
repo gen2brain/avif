@@ -2,7 +2,7 @@ LIBAVIF_VERSION = v1.0.4
 LIBAVIF_AOM_VERSION = v3.8.2
 LIBAVIF_YUV_VERSION = stable
 
-LIBAVIF_SRC = $(PWD)/libavif
+LIBAVIF_SRC = $(PWD)/libavif.encode
 LIBAVIF_BUILD = $(LIBAVIF_SRC)/build
 LIBAVIF_AOM_SRC = $(LIBAVIF_SRC)/ext/aom
 LIBAVIF_AOM_BUILD = $(LIBAVIF_AOM_SRC)/build.libavif
@@ -21,7 +21,7 @@ BIN := encode.wasm
 all: $(BIN)
 
 $(LIBAVIF_SRC):
-	git clone -b $(LIBAVIF_VERSION) --depth 1 https://github.com/AOMediaCodec/libavif
+	git clone -b $(LIBAVIF_VERSION) --depth 1 https://github.com/AOMediaCodec/libavif libavif.encode
 	sed -i '/pthread_create\|pthread_join/d' $(LIBAVIF_SRC)/src/reformat.c
 	mkdir -p $(LIBAVIF_BUILD)
 	test -d $@
