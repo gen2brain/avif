@@ -1,5 +1,5 @@
-LIBAVIF_VERSION = v1.0.4
-LIBAVIF_AOM_VERSION = v3.8.2
+LIBAVIF_VERSION = v1.1.1
+LIBAVIF_AOM_VERSION = v3.10.0
 LIBAVIF_YUV_VERSION = stable
 
 LIBAVIF_SRC = $(PWD)/libavif.encode
@@ -22,6 +22,7 @@ all: $(BIN)
 
 $(LIBAVIF_SRC):
 	git clone -b $(LIBAVIF_VERSION) --depth 1 https://github.com/AOMediaCodec/libavif libavif.encode
+	sed -i '/DAVIF_LIBSHARPYUV_ENABLED/d' $(LIBAVIF_SRC)/CMakeLists.txt
 	sed -i '/pthread_create\|pthread_join/d' $(LIBAVIF_SRC)/src/reformat.c
 	mkdir -p $(LIBAVIF_BUILD)
 	test -d $@
@@ -75,7 +76,7 @@ $(LIBAVIF_BUILD)/libavif.a: $(LIBAVIF_AOM_BUILD)/libaom.a $(LIBAVIF_YUV_BUILD)/l
 	cmake $(LIBAVIF_SRC) \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DBUILD_SHARED_LIBS=0 \
-		-DAVIF_CODEC_AOM=1 \
+		-DAVIF_CODEC_AOM=LOCAL \
 		-DAVIF_LOCAL_AOM=1 \
 		-DAVIF_CODEC_AOM_DECODE=0 \
 		-DAVIF_CODEC_AOM_ENCODE=1 \

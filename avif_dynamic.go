@@ -220,10 +220,10 @@ func init() {
 	purego.RegisterLibFunc(&_avifEncoderFinish, libavif, "avifEncoderFinish")
 	purego.RegisterLibFunc(&_avifRWDataFree, libavif, "avifRWDataFree")
 
-	major, _ := avifVersion()
-	if major < 1 {
+	major, minor := avifVersion()
+	if major != 1 || minor < 1 {
 		dynamic = false
-		dynamicErr = fmt.Errorf("minimum required libavif version is 1.0.0")
+		dynamicErr = fmt.Errorf("minimum required libavif version is 1.1.0")
 	}
 }
 
@@ -457,31 +457,33 @@ type avifImageMirror struct {
 type avifDecoderData struct{}
 
 type avifDecoder struct {
-	CodecChoice          uint32
-	MaxThreads           int32
-	RequestedSource      uint32
-	AllowProgressive     int32
-	AllowIncremental     int32
-	IgnoreExif           int32
-	IgnoreXMP            int32
-	ImageSizeLimit       uint32
-	ImageDimensionLimit  uint32
-	ImageCountLimit      uint32
-	StrictFlags          uint32
-	Image                *avifImage
-	ImageIndex           int32
-	ImageCount           int32
-	ProgressiveState     uint32
-	ImageTiming          avifImageTiming
-	Timescale            uint64
-	Duration             float64
-	DurationInTimescales uint64
-	RepetitionCount      int32
-	AlphaPresent         int32
-	IoStats              avifIOStats
-	Diag                 avifDiagnostics
-	Io                   *avifIO
-	Data                 *avifDecoderData
+	CodecChoice               uint32
+	MaxThreads                int32
+	RequestedSource           uint32
+	AllowProgressive          int32
+	AllowIncremental          int32
+	IgnoreExif                int32
+	IgnoreXMP                 int32
+	ImageSizeLimit            uint32
+	ImageDimensionLimit       uint32
+	ImageCountLimit           uint32
+	StrictFlags               uint32
+	Image                     *avifImage
+	ImageIndex                int32
+	ImageCount                int32
+	ProgressiveState          uint32
+	ImageTiming               avifImageTiming
+	Timescale                 uint64
+	Duration                  float64
+	DurationInTimescales      uint64
+	RepetitionCount           int32
+	AlphaPresent              int32
+	IoStats                   avifIOStats
+	Diag                      avifDiagnostics
+	Io                        *avifIO
+	Data                      *avifDecoderData
+	ImageSequenceTrackPresent int32
+	_                         [4]byte
 }
 
 type avifEncoderData struct{}
@@ -520,4 +522,6 @@ type avifEncoder struct {
 	Diag              avifDiagnostics
 	Data              *avifEncoderData
 	CsOptions         *avifCodecSpecificOptions
+	HeaderFormat      uint32
+	_                 [4]byte
 }
