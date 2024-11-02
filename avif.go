@@ -155,6 +155,28 @@ func Dynamic() error {
 	return dynamicErr
 }
 
+// InitDecoder initializes wazero runtime and compiles the module.
+// This function does nothing if a dynamic/shared library is used and Dynamic() returns nil.
+// There is no need to explicitly call this function, first Decode will initialize the runtime.
+func InitDecoder() {
+	if dynamic && dynamicErr == nil {
+		return
+	}
+
+	initDecoderOnce()
+}
+
+// InitEncoder initializes wazero runtime and compiles the module.
+// This function does nothing if a dynamic/shared library is used and Dynamic() returns nil.
+// There is no need to explicitly call this function, first Encode will initialize the runtime.
+func InitEncoder() {
+	if dynamic && dynamicErr == nil {
+		return
+	}
+
+	initEncoderOnce()
+}
+
 const (
 	avifChromaUpsamplingFastest = 1
 
