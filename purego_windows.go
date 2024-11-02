@@ -4,8 +4,7 @@ package avif
 
 import (
 	"fmt"
-
-	"golang.org/x/sys/windows"
+	"syscall"
 )
 
 const (
@@ -13,7 +12,7 @@ const (
 )
 
 func loadLibrary() (uintptr, error) {
-	handle, err := windows.LoadLibrary(libname)
+	handle, err := syscall.LoadLibrary(libname)
 	if err != nil {
 		return 0, fmt.Errorf("cannot load library %s: %w", libname, err)
 	}
