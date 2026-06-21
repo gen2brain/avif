@@ -11,3 +11,4 @@ The library will first try to use a dynamic/shared library (if installed) via [p
 ### Build tags
 
 * `nodynamic` - do not use dynamic/shared library (use only WASM)
+* `wasm2go` - transpile the WASM to pure Go with [wasm2go](https://github.com/ncruces/wasm2go) instead of running it with wazero

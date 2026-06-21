@@ -1,7 +1,7 @@
 // Package avif implements an AVIF image decoder based on libavif compiled to WASM.
 package avif
 
-//go:generate wasm2go -pkg avif -unsafe -o libavif.go lib/avif.wasm
+//go:generate wasm2go -pkg avif -unsafe -tags wasm2go -o libavif.go lib/avif.wasm
 
 import (
 	"errors"
