@@ -2,7 +2,6 @@ package avif
 
 import (
 	"bytes"
-	"debug/pe"
 	"encoding/binary"
 	"fmt"
 	"image"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"runtime"
 	"unsafe"
 )
 
@@ -231,8 +229,7 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsam
 }
 
 func newModule() *Module {
-	stdout, stderr := stdWriters()
-	mod := New(&wasiHost{stdout: stdout, stderr: stderr})
+	mod := New(&wasiHost{})
 	mod.X_initialize()
 
 	return mod
@@ -294,9 +291,7 @@ const errBadf = 8
 // against. dav1d/aom only emit diagnostic output (fd_write) and may abort
 // (proc_exit); the file-I/O calls are never reached and return EBADF.
 type wasiHost struct {
-	mod    *Module
-	stdout io.Writer
-	stderr io.Writer
+	mod *Module
 }
 
 func (h *wasiHost) Init(m any) {
@@ -347,21 +342,19 @@ func (h *wasiHost) Xproc_exit(code int32) {
 func (h *wasiHost) Xfd_write(fd, iovs, iovsLen, nwrittenPtr int32) int32 {
 	mem := h.mod.memory
 
-	var dst io.Writer
+	var dst *os.File
 	switch fd {
 	case 1:
-		dst = h.stdout
+		dst = os.Stdout
 	case 2:
-		dst = h.stderr
-	default:
-		dst = io.Discard
+		dst = os.Stderr
 	}
 
 	var written uint32
 	for i := int32(0); i < iovsLen; i++ {
 		ptr := load32(mem[iovs+i*8:])
 		length := load32(mem[iovs+i*8+4:])
-		if length != 0 {
+		if length != 0 && dst != nil {
 			dst.Write(mem[ptr : ptr+length])
 		}
 		written += length
@@ -370,41 +363,4 @@ func (h *wasiHost) Xfd_write(fd, iovs, iovsLen, nwrittenPtr int32) int32 {
 	store32(mem[nwrittenPtr:], written)
 
 	return 0
-}
-
-func stdWriters() (io.Writer, io.Writer) {
-	if runtime.GOOS == "windows" && isWindowsGUI() {
-		return io.Discard, io.Discard
-	}
-
-	return os.Stdout, os.Stderr
-}
-
-func isWindowsGUI() bool {
-	const imageSubsystemWindowsGui = 2
-
-	fileName, err := os.Executable()
-	if err != nil {
-		return false
-	}
-
-	fl, err := pe.Open(fileName)
-	if err != nil {
-		return false
-	}
-
-	defer fl.Close()
-
-	var subsystem uint16
-	if header, ok := fl.OptionalHeader.(*pe.OptionalHeader64); ok {
-		subsystem = header.Subsystem
-	} else if header, ok := fl.OptionalHeader.(*pe.OptionalHeader32); ok {
-		subsystem = header.Subsystem
-	}
-
-	if subsystem == imageSubsystemWindowsGui {
-		return true
-	}
-
-	return false
 }
