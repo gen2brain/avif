@@ -1,6 +1,8 @@
 // Package avif implements an AVIF image decoder based on libavif compiled to WASM.
 package avif
 
+//go:generate wasm2go -pkg avif -unsafe -o libavif.go lib/avif.wasm
+
 import (
 	"errors"
 	"image"
@@ -153,28 +155,6 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 // Dynamic returns error (if there was any) during opening dynamic/shared library.
 func Dynamic() error {
 	return dynamicErr
-}
-
-// InitDecoder initializes wazero runtime and compiles the module.
-// This function does nothing if a dynamic/shared library is used and Dynamic() returns nil.
-// There is no need to explicitly call this function, first Decode will initialize the runtime.
-func InitDecoder() {
-	if dynamic && dynamicErr == nil {
-		return
-	}
-
-	initDecoderOnce()
-}
-
-// InitEncoder initializes wazero runtime and compiles the module.
-// This function does nothing if a dynamic/shared library is used and Dynamic() returns nil.
-// There is no need to explicitly call this function, first Encode will initialize the runtime.
-func InitEncoder() {
-	if dynamic && dynamicErr == nil {
-		return
-	}
-
-	initEncoderOnce()
 }
 
 const (

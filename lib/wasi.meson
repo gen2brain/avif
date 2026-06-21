@@ -1,0 +1,14 @@
+[binaries]
+c = '/opt/wasi-sdk/bin/clang'
+ar = '/opt/wasi-sdk/bin/llvm-ar'
+strip = '/opt/wasi-sdk/bin/llvm-strip'
+
+[host_machine]
+system = 'wasi'
+cpu_family = 'wasm32'
+cpu = 'wasm32'
+endian = 'little'
+
+[built-in options]
+c_args = ['--target=wasm32-wasip1', '--sysroot=/opt/wasi-sdk/share/wasi-sysroot', '-D__wasm_exception_handling__']
+c_link_args = ['--target=wasm32-wasip1', '--sysroot=/opt/wasi-sdk/share/wasi-sysroot']
