@@ -121,7 +121,7 @@ func decodeDynamic(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config
 	return av, cfg, nil
 }
 
-func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio) error {
+func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) error {
 	i := imageToRGBA(m)
 
 	var chroma int
@@ -138,6 +138,11 @@ func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int,
 
 	img := avifImageCreate(i.Bounds().Dx(), i.Bounds().Dy(), 8, chroma)
 	defer avifImageDestroy(img)
+
+	if lossless {
+		img.MatrixCoefficients = avifMatrixCoefficientsIdentity
+		img.YuvRange = avifRangeFull
+	}
 
 	var rgb avifRGBImage
 	avifRGBImageSetDefaults(&rgb, img)

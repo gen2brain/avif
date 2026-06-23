@@ -4,7 +4,7 @@
 #include "avif/avif.h"
 
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height, uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *out);
-uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma);
+uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma, int lossless);
 
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height,
     uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *out) {
@@ -82,10 +82,15 @@ int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, 
     return 1;
 }
 
-uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma) {
+uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma, int lossless) {
     avifResult result;
 
     avifImage *image = avifImageCreate(width, height, 8, chroma);
+
+    if(lossless) {
+        image->matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_IDENTITY;
+        image->yuvRange = AVIF_RANGE_FULL;
+    }
 
     avifRGBImage rgb;
     avifRGBImageSetDefaults(&rgb, image);

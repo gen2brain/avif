@@ -202,7 +202,7 @@ func decode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error
 	return ret, cfg, nil
 }
 
-func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio) error {
+func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) error {
 	initOnce()
 
 	ctx := context.Background()
@@ -250,8 +250,13 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsam
 	sizePtr := res[0]
 	defer _free.Call(ctx, sizePtr)
 
+	ll := uint64(0)
+	if lossless {
+		ll = 1
+	}
+
 	res, err = _encode.Call(ctx, inPtr, uint64(img.Bounds().Dx()), uint64(img.Bounds().Dy()), sizePtr,
-		uint64(quality), uint64(qualityAlpha), uint64(speed), uint64(chroma))
+		uint64(quality), uint64(qualityAlpha), uint64(speed), uint64(chroma), ll)
 	if err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}

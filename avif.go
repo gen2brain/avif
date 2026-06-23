@@ -34,7 +34,7 @@ const DefaultSpeed = 10
 
 // Options are the encoding parameters.
 type Options struct {
-	// Quality in the range [0,100]. Quality of 100 implies lossless. Default is 60.
+	// Quality in the range [0,100]. Default is 60.
 	Quality int
 	// Quality in the range [0,100].
 	QualityAlpha int
@@ -42,6 +42,8 @@ type Options struct {
 	Speed int
 	// Chroma subsampling, 444|422|420.
 	ChromaSubsampling image.YCbCrSubsampleRatio
+	// Lossless enables lossless compression. Lossless ignores quality and forces 4:4:4 chroma.
+	Lossless bool
 }
 
 // Decode reads a AVIF image from r and returns it as an image.Image.
@@ -110,6 +112,7 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 	qualityAlpha := DefaultQuality
 	speed := DefaultSpeed
 	chroma := image.YCbCrSubsampleRatio420
+	lossless := false
 
 	if o != nil {
 		opt := o[0]
@@ -117,6 +120,7 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 		qualityAlpha = opt.QualityAlpha
 		speed = opt.Speed
 		chroma = opt.ChromaSubsampling
+		lossless = opt.Lossless
 
 		if quality <= 0 {
 			quality = DefaultQuality
@@ -130,20 +134,26 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 			qualityAlpha = 100
 		}
 
-		if speed <= 0 {
+		if speed < 0 {
 			speed = DefaultSpeed
 		} else if speed > 10 {
 			speed = 10
 		}
 	}
 
+	if lossless {
+		quality = 100
+		qualityAlpha = 100
+		chroma = image.YCbCrSubsampleRatio444
+	}
+
 	if dynamic {
-		err := encodeDynamic(w, m, quality, qualityAlpha, speed, chroma)
+		err := encodeDynamic(w, m, quality, qualityAlpha, speed, chroma, lossless)
 		if err != nil {
 			return err
 		}
 	} else {
-		err := encode(w, m, quality, qualityAlpha, speed, chroma)
+		err := encode(w, m, quality, qualityAlpha, speed, chroma, lossless)
 		if err != nil {
 			return err
 		}
@@ -165,6 +175,9 @@ const (
 	avifPixelFormatYuv420 = 3
 
 	avifAddImageFlagSingle = 2
+
+	avifMatrixCoefficientsIdentity = 0
+	avifRangeFull                  = 1
 )
 
 func imageToRGBA(src image.Image) *image.RGBA {

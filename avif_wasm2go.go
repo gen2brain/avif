@@ -165,7 +165,7 @@ func decode(r io.Reader, configOnly, decodeAll bool) (ret *AVIF, cfg image.Confi
 	return ret, cfg, nil
 }
 
-func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio) (err error) {
+func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) (err error) {
 	mod := newModule()
 
 	defer func() {
@@ -203,8 +203,13 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsam
 	sizePtr := mod.Xmalloc(8)
 	defer mod.Xfree(sizePtr)
 
+	ll := int32(0)
+	if lossless {
+		ll = 1
+	}
+
 	outPtr := mod.Xencode(inPtr, int32(img.Bounds().Dx()), int32(img.Bounds().Dy()), sizePtr, int32(quality),
-		int32(qualityAlpha), int32(speed), int32(chroma))
+		int32(qualityAlpha), int32(speed), int32(chroma), ll)
 
 	size, ok := mod.readUint64(sizePtr)
 	if !ok {
@@ -230,14 +235,14 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsam
 	return nil
 }
 
-func newModule() *Module {
-	mod := New(&wasiHost{})
+func newModule() *module {
+	mod := newModuleRaw(&wasiHost{})
 	mod.X_initialize()
 
 	return mod
 }
 
-func (m *Module) write(ptr int32, data []byte) bool {
+func (m *module) write(ptr int32, data []byte) bool {
 	if ptr < 0 || int(ptr)+len(data) > len(m.memory) {
 		return false
 	}
@@ -247,7 +252,7 @@ func (m *Module) write(ptr int32, data []byte) bool {
 	return true
 }
 
-func (m *Module) read(ptr, size int32) ([]byte, bool) {
+func (m *module) read(ptr, size int32) ([]byte, bool) {
 	if ptr < 0 || size < 0 || int(ptr)+int(size) > len(m.memory) {
 		return nil, false
 	}
@@ -255,7 +260,7 @@ func (m *Module) read(ptr, size int32) ([]byte, bool) {
 	return m.memory[ptr : ptr+size : ptr+size], true
 }
 
-func (m *Module) readUint32(ptr int32) (uint32, bool) {
+func (m *module) readUint32(ptr int32) (uint32, bool) {
 	if ptr < 0 || int(ptr)+4 > len(m.memory) {
 		return 0, false
 	}
@@ -263,7 +268,7 @@ func (m *Module) readUint32(ptr int32) (uint32, bool) {
 	return load32(m.memory[ptr:]), true
 }
 
-func (m *Module) readUint64(ptr int32) (uint64, bool) {
+func (m *module) readUint64(ptr int32) (uint64, bool) {
 	if ptr < 0 || int(ptr)+8 > len(m.memory) {
 		return 0, false
 	}
@@ -271,7 +276,7 @@ func (m *Module) readUint64(ptr int32) (uint64, bool) {
 	return load64(m.memory[ptr:]), true
 }
 
-func (m *Module) readFloat64(ptr int32) (float64, bool) {
+func (m *module) readFloat64(ptr int32) (float64, bool) {
 	v, ok := m.readUint64(ptr)
 	if !ok {
 		return 0, false
@@ -293,11 +298,11 @@ const errBadf = 8
 // against. dav1d/aom only emit diagnostic output (fd_write) and may abort
 // (proc_exit); the file-I/O calls are never reached and return EBADF.
 type wasiHost struct {
-	mod *Module
+	mod *module
 }
 
 func (h *wasiHost) Init(m any) {
-	h.mod = m.(*Module)
+	h.mod = m.(*module)
 }
 
 func (h *wasiHost) Xclock_time_get(id int32, precision int64, retPtr int32) int32 {
