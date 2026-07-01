@@ -45,12 +45,7 @@ type Exif struct {
 
 // DecodeExif reads the EXIF metadata from an AVIF image. It returns ErrNoExif if the image carries no Exif item.
 func DecodeExif(r io.Reader) (*Exif, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("avif: read: %w", err)
-	}
-
-	tiff := exifPayload(data)
+	tiff := exifPayload(r)
 	if tiff == nil {
 		return nil, ErrNoExif
 	}
@@ -63,13 +58,54 @@ func DecodeExif(r io.Reader) (*Exif, error) {
 	return exif, nil
 }
 
-// exifPayload returns the TIFF payload of the AVIF Exif item, or nil if absent.
-func exifPayload(data []byte) []byte {
-	meta, ok := metaPayload(data)
-	if !ok {
-		return nil
-	}
+// exifPayload streams the top-level boxes, keeping only meta, then reaches the Exif item via its iloc extent.
+func exifPayload(r io.Reader) []byte {
+	var pos int64
+	var hdr [8]byte
 
+	for {
+		if _, err := io.ReadFull(r, hdr[:]); err != nil {
+			return nil
+		}
+		pos += 8
+
+		size := int64(binary.BigEndian.Uint32(hdr[0:4]))
+		typ := string(hdr[4:8])
+
+		body := size - 8
+		if size == 1 {
+			var big [8]byte
+			if _, err := io.ReadFull(r, big[:]); err != nil {
+				return nil
+			}
+			pos += 8
+			body = int64(binary.BigEndian.Uint64(big[:])) - 16
+		} else if size == 0 {
+			body = -1
+		}
+
+		if typ == "meta" {
+			meta := readBody(r, body)
+			if len(meta) < 4 {
+				return nil
+			}
+			pos += int64(len(meta))
+
+			return exifFromMeta(r, meta[4:], pos)
+		}
+
+		if body < 0 {
+			return nil
+		}
+		if _, err := io.CopyN(io.Discard, r, body); err != nil {
+			return nil
+		}
+		pos += body
+	}
+}
+
+// exifFromMeta resolves the Exif item from the meta children and reads its TIFF payload from r at absolute pos.
+func exifFromMeta(r io.Reader, meta []byte, pos int64) []byte {
 	id := exifItemID(meta)
 	if id < 0 {
 		return nil
@@ -83,10 +119,13 @@ func exifPayload(data []byte) []byte {
 	var raw []byte
 	switch method {
 	case 0:
-		if off+length > uint64(len(data)) {
+		if int64(off) < pos {
+			return nil // Exif precedes the meta box; not reachable by forward streaming.
+		}
+		if _, err := io.CopyN(io.Discard, r, int64(off)-pos); err != nil {
 			return nil
 		}
-		raw = data[off : off+length]
+		raw = readBody(r, int64(length))
 	case 1:
 		idat := idatPayload(meta)
 		if idat == nil || off+length > uint64(len(idat)) {
@@ -97,12 +136,31 @@ func exifPayload(data []byte) []byte {
 		return nil
 	}
 
+	if len(raw) < 4 {
+		return nil
+	}
+
 	start := 4 + int(binary.BigEndian.Uint32(raw[0:4]))
 	if start >= len(raw) {
 		return nil
 	}
 
 	return raw[start:]
+}
+
+// readBody reads n bytes, or all remaining bytes when n is negative.
+func readBody(r io.Reader, n int64) []byte {
+	if n < 0 {
+		b, _ := io.ReadAll(r)
+		return b
+	}
+
+	b := make([]byte, n)
+	if _, err := io.ReadFull(r, b); err != nil {
+		return nil
+	}
+
+	return b
 }
 
 // exifItemID returns the item ID of the Exif item from the iinf box, or -1 when absent.
