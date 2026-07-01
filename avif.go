@@ -4,8 +4,11 @@ package avif
 //go:generate wasm2go -pkg avif -unsafe -tags wasm2go -o libavif.go lib/avif.wasm
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"io"
 )
@@ -44,23 +47,42 @@ type Options struct {
 	ChromaSubsampling image.YCbCrSubsampleRatio
 	// Lossless enables lossless compression. Lossless ignores quality and forces 4:4:4 chroma.
 	Lossless bool
+	// AutoRotate applies the irot/imir orientation to the decoded image (Decode/DecodeAll only).
+	AutoRotate bool
 }
 
-// Decode reads a AVIF image from r and returns it as an image.Image.
-func Decode(r io.Reader) (image.Image, error) {
-	var err error
-	var ret *AVIF
+// avifMaxHeaderSize bounds the prefix read to find dimensions without decoding.
+const avifMaxHeaderSize = 1 << 18
 
+func doDecode(r io.Reader, configOnly, decodeAll bool) (*AVIF, image.Config, error) {
 	if dynamic {
-		ret, _, err = decodeDynamic(r, false, false)
+		return decodeDynamic(r, configOnly, decodeAll)
+	}
+
+	return decode(r, configOnly, decodeAll)
+}
+
+// Decode reads a AVIF image from r; pass Options{AutoRotate: true} to apply the orientation.
+func Decode(r io.Reader, opts ...Options) (image.Image, error) {
+	if len(opts) > 0 && opts[0].AutoRotate {
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("avif: read: %w", err)
+		}
+
+		ret, _, err := doDecode(bytes.NewReader(data), false, false)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		ret, _, err = decode(r, false, false)
-		if err != nil {
-			return nil, err
-		}
+
+		props, _ := parseAVIFProps(data)
+
+		return applyOrientation(ret.Image[0], props.orientation), nil
+	}
+
+	ret, _, err := doDecode(r, false, false)
+	if err != nil {
+		return nil, err
 	}
 
 	return ret.Image[0], nil
@@ -68,39 +90,54 @@ func Decode(r io.Reader) (image.Image, error) {
 
 // DecodeConfig returns the color model and dimensions of a AVIF image without decoding the entire image.
 func DecodeConfig(r io.Reader) (image.Config, error) {
-	var err error
-	var cfg image.Config
+	prefix, err := io.ReadAll(io.LimitReader(r, avifMaxHeaderSize))
+	if err != nil {
+		return image.Config{}, fmt.Errorf("avif: read: %w", err)
+	}
 
-	if dynamic {
-		_, cfg, err = decodeDynamic(r, true, false)
-		if err != nil {
-			return image.Config{}, err
+	if props, ok := parseAVIFProps(prefix); ok {
+		cm := color.RGBAModel
+		if props.hiDepth {
+			cm = color.RGBA64Model
 		}
-	} else {
-		_, cfg, err = decode(r, true, false)
-		if err != nil {
-			return image.Config{}, err
-		}
+
+		return image.Config{ColorModel: cm, Width: props.width, Height: props.height}, nil
+	}
+
+	_, cfg, err := doDecode(io.MultiReader(bytes.NewReader(prefix), r), true, false)
+	if err != nil {
+		return image.Config{}, err
 	}
 
 	return cfg, nil
 }
 
-// DecodeAll reads a AVIF image from r and returns the sequential frames and timing information.
-func DecodeAll(r io.Reader) (*AVIF, error) {
-	var err error
-	var ret *AVIF
+// DecodeAll reads a AVIF image from r; pass Options{AutoRotate: true} to orient each frame.
+func DecodeAll(r io.Reader, opts ...Options) (*AVIF, error) {
+	if len(opts) > 0 && opts[0].AutoRotate {
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("avif: read: %w", err)
+		}
 
-	if dynamic {
-		ret, _, err = decodeDynamic(r, false, true)
+		ret, _, err := doDecode(bytes.NewReader(data), false, true)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		ret, _, err = decode(r, false, true)
-		if err != nil {
-			return nil, err
+
+		props, _ := parseAVIFProps(data)
+		if props.orientation > 1 {
+			for i := range ret.Image {
+				ret.Image[i] = applyOrientation(ret.Image[i], props.orientation)
+			}
 		}
+
+		return ret, nil
+	}
+
+	ret, _, err := doDecode(r, false, true)
+	if err != nil {
+		return nil, err
 	}
 
 	return ret, nil
@@ -192,7 +229,11 @@ func imageToRGBA(src image.Image) *image.RGBA {
 	return dst
 }
 
+func decodeWrapper(r io.Reader) (image.Image, error) {
+	return Decode(r)
+}
+
 func init() {
-	image.RegisterFormat("avif", "????ftypavif", Decode, DecodeConfig)
-	image.RegisterFormat("avif", "????ftypavis", Decode, DecodeConfig)
+	image.RegisterFormat("avif", "????ftypavif", decodeWrapper, DecodeConfig)
+	image.RegisterFormat("avif", "????ftypavis", decodeWrapper, DecodeConfig)
 }
