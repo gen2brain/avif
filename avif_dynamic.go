@@ -188,6 +188,88 @@ func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int,
 	return nil
 }
 
+func encodeAnimationDynamic(w io.Writer, frames []byte, width, height, count int, delays []int, loopCount, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) error {
+	var chroma int
+	switch subsampleRatio {
+	case image.YCbCrSubsampleRatio444:
+		chroma = avifPixelFormatYuv444
+	case image.YCbCrSubsampleRatio422:
+		chroma = avifPixelFormatYuv422
+	case image.YCbCrSubsampleRatio420:
+		chroma = avifPixelFormatYuv420
+	default:
+		return fmt.Errorf("unsupported chroma %d", subsampleRatio)
+	}
+
+	var output avifRWData
+	defer avifRWDataFree(&output)
+
+	encoder := avifEncoderCreate()
+	defer avifEncoderDestroy(encoder)
+
+	encoder.MaxThreads = int32(runtime.NumCPU())
+	encoder.Quality = int32(quality)
+	encoder.QualityAlpha = int32(qualityAlpha)
+	encoder.Speed = int32(speed)
+	encoder.Timescale = 1000
+
+	if loopCount == 0 {
+		encoder.RepetitionCount = avifRepetitionCountInfinite
+	} else {
+		encoder.RepetitionCount = int32(loopCount)
+	}
+
+	frameSize := width * height * 4
+
+	for i := 0; i < count; i++ {
+		img := avifImageCreate(width, height, 8, chroma)
+
+		if lossless {
+			img.MatrixCoefficients = avifMatrixCoefficientsIdentity
+			img.YuvRange = avifRangeFull
+		}
+
+		var rgb avifRGBImage
+		avifRGBImageSetDefaults(&rgb, img)
+
+		rgb.MaxThreads = int32(runtime.NumCPU())
+		rgb.AlphaPremultiplied = 1
+
+		if !avifRGBImageAllocatePixels(&rgb) {
+			avifImageDestroy(img)
+			return ErrEncode
+		}
+
+		copy(unsafe.Slice(rgb.Pixels, rgb.RowBytes*rgb.Height), frames[i*frameSize:(i+1)*frameSize])
+
+		if !avifImageRGBToYuv(img, &rgb) {
+			avifRGBImageFreePixels(&rgb)
+			avifImageDestroy(img)
+			return ErrEncode
+		}
+
+		ok := avifEncoderAddImage(encoder, img, uint64(delays[i]), avifAddImageFlagNone)
+
+		avifRGBImageFreePixels(&rgb)
+		avifImageDestroy(img)
+
+		if !ok {
+			return ErrEncode
+		}
+	}
+
+	if !avifEncoderFinish(encoder, &output) {
+		return ErrEncode
+	}
+
+	_, err := w.Write(unsafe.Slice(output.Data, output.Size))
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
+}
+
 func init() {
 	var err error
 	defer func() {

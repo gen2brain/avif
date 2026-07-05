@@ -241,6 +241,37 @@ func TestEncode(t *testing.T) {
 	}
 }
 
+func TestEncodeAll(t *testing.T) {
+	anim, err := DecodeAll(bytes.NewReader(testAvifAnim))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	small := &AVIF{
+		Image:     anim.Image[:3],
+		Delay:     anim.Delay[:3],
+		LoopCount: 0,
+	}
+
+	var buf bytes.Buffer
+	if err := EncodeAll(&buf, small, Options{Speed: 10}); err != nil {
+		t.Fatal("EncodeAll:", err)
+	}
+
+	if buf.Len() == 0 {
+		t.Fatal("EncodeAll produced empty output")
+	}
+
+	out, err := DecodeAll(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal("re-decode:", err)
+	}
+
+	if len(out.Image) != len(small.Image) {
+		t.Errorf("re-decoded %d frames, want %d", len(out.Image), len(small.Image))
+	}
+}
+
 func TestEncodeDynamic(t *testing.T) {
 	if err := Dynamic(); err != nil {
 		fmt.Println(err)

@@ -285,6 +285,102 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsam
 	return nil
 }
 
+func encodeAnimation(w io.Writer, frames []byte, width, height, count int, delays []int, loopCount, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) error {
+	initOnce()
+
+	ctx := context.Background()
+	mod, err := rt.InstantiateModule(ctx, cm, mc)
+	if err != nil {
+		return err
+	}
+
+	defer mod.Close(ctx)
+
+	_alloc := mod.ExportedFunction("malloc")
+	_free := mod.ExportedFunction("free")
+	_encode := mod.ExportedFunction("encode_animation")
+
+	var chroma int
+	switch subsampleRatio {
+	case image.YCbCrSubsampleRatio444:
+		chroma = avifPixelFormatYuv444
+	case image.YCbCrSubsampleRatio422:
+		chroma = avifPixelFormatYuv422
+	case image.YCbCrSubsampleRatio420:
+		chroma = avifPixelFormatYuv420
+	default:
+		return fmt.Errorf("unsupported chroma %d", subsampleRatio)
+	}
+
+	res, err := _alloc.Call(ctx, uint64(len(frames)))
+	if err != nil {
+		return fmt.Errorf("alloc: %w", err)
+	}
+	framesPtr := res[0]
+	defer _free.Call(ctx, framesPtr)
+
+	if !mod.Memory().Write(uint32(framesPtr), frames) {
+		return ErrMemWrite
+	}
+
+	delayBuf := make([]byte, count*4)
+	for i := 0; i < count; i++ {
+		binary.LittleEndian.PutUint32(delayBuf[i*4:], uint32(delays[i]))
+	}
+
+	res, err = _alloc.Call(ctx, uint64(len(delayBuf)))
+	if err != nil {
+		return fmt.Errorf("alloc: %w", err)
+	}
+	delaysPtr := res[0]
+	defer _free.Call(ctx, delaysPtr)
+
+	if !mod.Memory().Write(uint32(delaysPtr), delayBuf) {
+		return ErrMemWrite
+	}
+
+	res, err = _alloc.Call(ctx, 8)
+	if err != nil {
+		return fmt.Errorf("alloc: %w", err)
+	}
+	sizePtr := res[0]
+	defer _free.Call(ctx, sizePtr)
+
+	ll := uint64(0)
+	if lossless {
+		ll = 1
+	}
+
+	res, err = _encode.Call(ctx, framesPtr, uint64(width), uint64(height), uint64(count), delaysPtr,
+		uint64(loopCount), uint64(quality), uint64(qualityAlpha), uint64(speed), uint64(chroma), ll, sizePtr)
+	if err != nil {
+		return fmt.Errorf("encode: %w", err)
+	}
+
+	size, ok := mod.Memory().ReadUint64Le(uint32(sizePtr))
+	if !ok {
+		return ErrMemRead
+	}
+
+	if size == 0 {
+		return ErrEncode
+	}
+
+	defer _free.Call(ctx, res[0])
+
+	out, ok := mod.Memory().Read(uint32(res[0]), uint32(size))
+	if !ok {
+		return ErrMemRead
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
+}
+
 var (
 	rt wazero.Runtime
 	cm wazero.CompiledModule
@@ -319,9 +415,9 @@ func initialize() {
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 
 	if runtime.GOOS == "windows" && isWindowsGUI() {
-		mc = wazero.NewModuleConfig().WithStderr(io.Discard).WithStdout(io.Discard)
+		mc = wazero.NewModuleConfig().WithName("").WithStderr(io.Discard).WithStdout(io.Discard)
 	} else {
-		mc = wazero.NewModuleConfig().WithStderr(os.Stderr).WithStdout(os.Stdout)
+		mc = wazero.NewModuleConfig().WithName("").WithStderr(os.Stderr).WithStdout(os.Stdout)
 	}
 }
 

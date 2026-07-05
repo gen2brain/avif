@@ -5,6 +5,7 @@
 
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height, uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *out);
 uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int quality, int quality_alpha, int speed, int chroma, int lossless);
+uint8_t* encode_animation(uint8_t *frames, int width, int height, int count, int *delays, int loop_count, int quality, int quality_alpha, int speed, int chroma, int lossless, size_t *size);
 
 int decode(uint8_t *avif_in, int avif_in_size, int config_only, int decode_all, uint32_t *width, uint32_t *height,
     uint32_t *depth, uint32_t *count, uint8_t *delay, uint8_t *out) {
@@ -141,6 +142,67 @@ uint8_t* encode(uint8_t *rgb_in, int width, int height, size_t *size, int qualit
 
     avifImageDestroy(image);
     avifRGBImageFreePixels(&rgb);
+    avifEncoderDestroy(encoder);
+
+    return output.data;
+}
+
+uint8_t* encode_animation(uint8_t *frames, int width, int height, int count, int *delays, int loop_count, int quality, int quality_alpha, int speed, int chroma, int lossless, size_t *size) {
+    *size = 0;
+    avifResult result;
+
+    avifEncoder *encoder = avifEncoderCreate();
+    encoder->maxThreads = 1;
+    encoder->quality = quality;
+    encoder->qualityAlpha = quality_alpha;
+    encoder->speed = speed;
+    encoder->timescale = 1000;
+    encoder->repetitionCount = loop_count == 0 ? AVIF_REPETITION_COUNT_INFINITE : loop_count;
+
+    size_t frame_size = (size_t)width * height * 4;
+
+    for(int i = 0; i < count; i++) {
+        avifImage *image = avifImageCreate(width, height, 8, chroma);
+
+        if(lossless) {
+            image->matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_IDENTITY;
+            image->yuvRange = AVIF_RANGE_FULL;
+        }
+
+        avifRGBImage rgb;
+        avifRGBImageSetDefaults(&rgb, image);
+
+        rgb.maxThreads = 1;
+        rgb.alphaPremultiplied = 1;
+        rgb.pixels = frames + (size_t)i * frame_size;
+        rgb.rowBytes = width * 4;
+
+        result = avifImageRGBToYUV(image, &rgb);
+        if(result != AVIF_RESULT_OK) {
+            avifImageDestroy(image);
+            avifEncoderDestroy(encoder);
+            return 0;
+        }
+
+        result = avifEncoderAddImage(encoder, image, (uint64_t)delays[i], AVIF_ADD_IMAGE_FLAG_NONE);
+        avifImageDestroy(image);
+
+        if(result != AVIF_RESULT_OK) {
+            avifEncoderDestroy(encoder);
+            return 0;
+        }
+    }
+
+    avifRWData output = AVIF_DATA_EMPTY;
+
+    result = avifEncoderFinish(encoder, &output);
+    if(result != AVIF_RESULT_OK) {
+        avifEncoderDestroy(encoder);
+        return 0;
+    }
+
+    *size = output.size;
+
     avifEncoderDestroy(encoder);
 
     return output.data;

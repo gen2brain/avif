@@ -235,6 +235,85 @@ func encode(w io.Writer, m image.Image, quality, qualityAlpha, speed int, subsam
 	return nil
 }
 
+func encodeAnimation(w io.Writer, frames []byte, width, height, count int, delays []int, loopCount, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) (err error) {
+	mod := newModule()
+
+	defer func() {
+		if e := recover(); e != nil {
+			if _, ok := e.(procExit); ok {
+				err = ErrEncode
+				return
+			}
+			panic(e)
+		}
+	}()
+
+	var chroma int
+	switch subsampleRatio {
+	case image.YCbCrSubsampleRatio444:
+		chroma = avifPixelFormatYuv444
+	case image.YCbCrSubsampleRatio422:
+		chroma = avifPixelFormatYuv422
+	case image.YCbCrSubsampleRatio420:
+		chroma = avifPixelFormatYuv420
+	default:
+		return fmt.Errorf("unsupported chroma %d", subsampleRatio)
+	}
+
+	framesPtr := mod.Xmalloc(int32(len(frames)))
+	defer mod.Xfree(framesPtr)
+
+	if !mod.write(framesPtr, frames) {
+		return ErrMemWrite
+	}
+
+	delayBuf := make([]byte, count*4)
+	for i := 0; i < count; i++ {
+		binary.LittleEndian.PutUint32(delayBuf[i*4:], uint32(delays[i]))
+	}
+
+	delaysPtr := mod.Xmalloc(int32(len(delayBuf)))
+	defer mod.Xfree(delaysPtr)
+
+	if !mod.write(delaysPtr, delayBuf) {
+		return ErrMemWrite
+	}
+
+	sizePtr := mod.Xmalloc(8)
+	defer mod.Xfree(sizePtr)
+
+	ll := int32(0)
+	if lossless {
+		ll = 1
+	}
+
+	outPtr := mod.Xencode_animation(framesPtr, int32(width), int32(height), int32(count), delaysPtr,
+		int32(loopCount), int32(quality), int32(qualityAlpha), int32(speed), int32(chroma), ll, sizePtr)
+
+	size, ok := mod.readUint64(sizePtr)
+	if !ok {
+		return ErrMemRead
+	}
+
+	if size == 0 {
+		return ErrEncode
+	}
+
+	defer mod.Xfree(outPtr)
+
+	out, ok := mod.read(outPtr, int32(size))
+	if !ok {
+		return ErrMemRead
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
+}
+
 func newModule() *module {
 	mod := newModuleRaw(&wasiHost{})
 	mod.X_initialize()

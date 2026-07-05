@@ -122,6 +122,7 @@ $(BIN): $(LIBAVIF_BUILD)/libavif.a
 		-Wl,--export=free \
 		-Wl,--export=decode \
 		-Wl,--export=encode \
+		-Wl,--export=encode_animation \
 		-mexec-model=reactor \
 		-mnontrapping-fptoint \
 		-z stack-size=1048576 \

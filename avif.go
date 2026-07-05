@@ -27,6 +27,8 @@ type AVIF struct {
 	Image []image.Image
 	// Delay times, one per frame, in seconds.
 	Delay []float64
+	// LoopCount is the number of times the animation repeats (0 = infinite).
+	LoopCount int
 }
 
 // DefaultQuality is the default quality encoding parameter.
@@ -199,6 +201,78 @@ func Encode(w io.Writer, m image.Image, o ...Options) error {
 	return nil
 }
 
+// EncodeAll writes the animation anim to w; all frames must share the same bounds.
+func EncodeAll(w io.Writer, anim *AVIF, o ...Options) error {
+	if anim == nil || len(anim.Image) == 0 {
+		return ErrEncode
+	}
+
+	quality := DefaultQuality
+	qualityAlpha := DefaultQuality
+	speed := DefaultSpeed
+	chroma := image.YCbCrSubsampleRatio420
+	lossless := false
+
+	if o != nil {
+		opt := o[0]
+		quality = opt.Quality
+		qualityAlpha = opt.QualityAlpha
+		speed = opt.Speed
+		chroma = opt.ChromaSubsampling
+		lossless = opt.Lossless
+
+		if quality <= 0 {
+			quality = DefaultQuality
+		} else if quality > 100 {
+			quality = 100
+		}
+
+		if qualityAlpha <= 0 {
+			qualityAlpha = DefaultQuality
+		} else if qualityAlpha > 100 {
+			qualityAlpha = 100
+		}
+
+		if speed < 0 {
+			speed = DefaultSpeed
+		} else if speed > 10 {
+			speed = 10
+		}
+	}
+
+	if lossless {
+		quality = 100
+		qualityAlpha = 100
+		chroma = image.YCbCrSubsampleRatio444
+	}
+
+	b := anim.Image[0].Bounds()
+	width, height := b.Dx(), b.Dy()
+	frameSize := width * height * 4
+
+	frames := make([]byte, frameSize*len(anim.Image))
+	delays := make([]int, len(anim.Image))
+
+	for i, img := range anim.Image {
+		if img.Bounds().Dx() != width || img.Bounds().Dy() != height {
+			return ErrEncode
+		}
+
+		rgba := imageToRGBA(img)
+		copy(frames[i*frameSize:(i+1)*frameSize], rgba.Pix)
+
+		if i < len(anim.Delay) {
+			delays[i] = int(anim.Delay[i]*1000 + 0.5)
+		}
+	}
+
+	if dynamic {
+		return encodeAnimationDynamic(w, frames, width, height, len(anim.Image), delays, anim.LoopCount, quality, qualityAlpha, speed, chroma, lossless)
+	}
+
+	return encodeAnimation(w, frames, width, height, len(anim.Image), delays, anim.LoopCount, quality, qualityAlpha, speed, chroma, lossless)
+}
+
 // Dynamic returns error (if there was any) during opening dynamic/shared library.
 func Dynamic() error {
 	return dynamicErr
@@ -211,10 +285,13 @@ const (
 	avifPixelFormatYuv422 = 2
 	avifPixelFormatYuv420 = 3
 
+	avifAddImageFlagNone   = 0
 	avifAddImageFlagSingle = 2
 
 	avifMatrixCoefficientsIdentity = 0
 	avifRangeFull                  = 1
+
+	avifRepetitionCountInfinite = -1
 )
 
 func imageToRGBA(src image.Image) *image.RGBA {

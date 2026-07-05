@@ -21,6 +21,10 @@ func encodeDynamic(w io.Writer, m image.Image, quality, qualityAlpha, speed int,
 	return dynamicErr
 }
 
+func encodeAnimationDynamic(w io.Writer, frames []byte, width, height, count int, delays []int, loopCount, quality, qualityAlpha, speed int, subsampleRatio image.YCbCrSubsampleRatio, lossless bool) error {
+	return dynamicErr
+}
+
 func loadLibrary() (uintptr, error) {
 	return 0, dynamicErr
 }
