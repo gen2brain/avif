@@ -25,7 +25,7 @@ all: $(BIN) wasm2go
 wasm2go: ../libavif.go
 
 ../libavif.go: $(BIN)
-	wasm2go -pkg avif -unsafe -o ../libavif.go $(BIN)
+	wasm2go -pkg avif -unsafe -tags wasm2go -o ../libavif.go $(BIN)
 	sed -i -E '/^const data[0-9]/! { s/\bModule\b/module/g; s/\bMemory\b/memory/g; s/\bNew\b/newModuleRaw/g; s/\bXwasi_snapshot_preview1\b/wasiSnapshotPreview1/g; }' ../libavif.go
 
 $(LIBAVIF_SRC):

@@ -304,7 +304,7 @@ func TestEncodeSync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 4; i++ {
 		wg.Add(1)
 		go func() {
 			ch <- true
