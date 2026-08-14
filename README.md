@@ -8,6 +8,8 @@ Based on [libavif](https://github.com/AOMediaCodec/libavif) with [dav1d](https:/
 
 The library will first try to use a dynamic/shared library (if installed) via [purego](https://github.com/ebitengine/purego) and will fall back to WASM.
 
+For a pure Go alternative, see [gav1d](https://github.com/gen2brain/gav1d), an AV1 and AVIF decoder and encoder with SIMD support, no CGo/WASM and no dependencies.
+
 ### Build tags
 
 * `nodynamic` - do not use dynamic/shared library (use only WASM)
